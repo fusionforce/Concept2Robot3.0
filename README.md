@@ -28,28 +28,36 @@ cd external/bullet3; bash build_cmake_pybullet_double.sh
 3. Install ffmpeg
 ```
 sudo apt install autoconf automake build-essential cmake libass-dev libfreetype6-dev libjpeg-dev libtheora-dev libtool libvorbis-dev libx264-dev pkg-config wget yasm zlib1g-dev
+
 wget https://www.ffmpeg.org/releases/ffmpeg-4.2.1.tar.xz
+
 tar -xf ffmpeg-4.2.1.tar.xz
+
 cd ffmpeg-4.2.1
+
 ./configure --disable-static --enable-shared --disable-doc
+
 make
+
 sudo make install
 ```
 
 4. Create and Initialize Conda Environment
 ```
-conda env create -f environment.yml
+conda env create -f concept2robot3.yml
 conda activate concept2robot
 ```
 
-5. Download [data](http://download.cs.stanford.edu/juno/Concept2Robot/data.zip), [models](http://download.cs.stanford.edu/juno/Concept2Robot/models.zip) folders into `ConceptManipulation` directory.
+5. Download [data](http://download.cs.stanford.edu/juno/Concept2Robot/data.zip), [models](https://drive.google.com/drive/folders/1ySHB2f-Oyn6M_vVkapziE1Nk_l7C7vlt?usp=sharing) folders into `Concept2Robot3.0` directory.
+
+6. Download [models](https://drive.google.com/drive/folders/1zkKlzSlDI_qarN2Hw-TF2vWJN728HGyW?usp=sharing) folder into `Concept2Robot3.0/rl` directory
 
 6. Run the code
 ```
 cd rl; bash train_5.sh
 ```
 
-If you think our work is useful, please consider citing use with
+If you think our work is useful, please consider citing us with
 ```
 @inproceedings{lin2020concept,
  title={Concept2Robot: Learning Manipulation Concepts from Instructions and Human Demonstrations},
