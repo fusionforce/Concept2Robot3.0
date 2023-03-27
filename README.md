@@ -20,9 +20,11 @@ over variations of the environment. We also show examples of successful generali
 git submodule init && git submodule update
 ```
 
-2. Compile bullet
+2. Clone and Compile bullet (Clone freshly to make sure bullet is updated)
 ```
-cd external/bullet3; bash build_cmake_pybullet_double.sh
+cd external
+git clone https://github.com/bulletphysics/bullet3.git
+cd bullet3; bash build_cmake_pybullet_double.sh
 ```
 
 3. Install ffmpeg
@@ -44,18 +46,51 @@ sudo make install
 
 4. Create and Initialize Conda Environment
 ```
-conda env create -f concept2robot3.yml
+conda env create -f concept2robot3.yaml
 conda activate concept2robot
 ```
 
 5. Download [data](http://download.cs.stanford.edu/juno/Concept2Robot/data.zip), [models](https://drive.google.com/drive/folders/1ySHB2f-Oyn6M_vVkapziE1Nk_l7C7vlt?usp=sharing) folders into `Concept2Robot3.0` directory.
 
-6. Download [models](https://drive.google.com/drive/folders/1zkKlzSlDI_qarN2Hw-TF2vWJN728HGyW?usp=sharing) folder into `Concept2Robot3.0/rl` directory
+6. Unzip data directory.
+```
+unzip data.zip
+```
+
+7. Download [models](https://drive.google.com/drive/folders/1zkKlzSlDI_qarN2Hw-TF2vWJN728HGyW?usp=sharing) folder into `Concept2Robot3.0/rl` directory
+
+You can use these commands to download a google drive folder:
+```python
+pip install gdown
+python
+>>> import gdown
+>>> url = 'https://drive.google.com/drive/folders/1ySHB2f-Oyn6M_vVkapziE1Nk_l7C7vlt?usp=sharing'
+>>> gdown.download_folder(url, quiet=True)
+```
 
 6. Run the code
 ```
 cd rl; bash train_5.sh
 ```
+
+## Tips
+
+1. If you're remotely connecting to a system, use ssh -X or make sure your ssh config has the following `Forward` fields enabled, otherwise PyBullet doesn't run and you get the error "cannot connect to X server".
+
+```
+Host 18.221.119.80
+  HostName 18.221.119.80
+  IdentityFile /home/shruthi/Documents/AWS/shruthi-a3.pem
+  User ubuntu
+  ForwardAgent yes
+  ForwardX11 yes
+  ForwardX11Trusted yes
+```
+
+2. If you face other issues and fix it, add it to this tip section in master branch so that it will be useful for the others.
+
+
+
 
 If you think our work is useful, please consider citing us with
 ```
