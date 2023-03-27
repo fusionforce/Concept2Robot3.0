@@ -50,14 +50,13 @@ conda activate concept2robot
 
 5. Download [data](http://download.cs.stanford.edu/juno/Concept2Robot/data.zip), [models](https://drive.google.com/drive/folders/1ySHB2f-Oyn6M_vVkapziE1Nk_l7C7vlt?usp=sharing) folders into `Concept2Robot3.0` directory.
 
-6. Unzip data directory.
+Download data using:
 ```
-unzip data.zip
+wget http://download.cs.stanford.edu/juno/Concept2Robot/data.zip
 ```
 
-7. Download [models](https://drive.google.com/drive/folders/1zkKlzSlDI_qarN2Hw-TF2vWJN728HGyW?usp=sharing) folder into `Concept2Robot3.0/rl` directory
+For models, you can use gdown to download a google drive folder:
 
-You can use these commands to download a google drive folder:
 ```python
 pip install gdown
 python
@@ -65,6 +64,13 @@ python
 >>> url = 'https://drive.google.com/drive/folders/1ySHB2f-Oyn6M_vVkapziE1Nk_l7C7vlt?usp=sharing'
 >>> gdown.download_folder(url, quiet=True)
 ```
+
+6. Unzip data directory.
+```
+unzip data.zip
+```
+
+7. Download [models](https://drive.google.com/drive/folders/1zkKlzSlDI_qarN2Hw-TF2vWJN728HGyW?usp=sharing) folder into `Concept2Robot3.0/rl` directory using gdown as performed above.
 
 6. Run the code
 ```
