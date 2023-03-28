@@ -285,9 +285,7 @@ class Worker(object):
                     break
 
     def train_force(self, restore_episode=0, restore_path=None, restore_episode_goal=0, restore_path_goal=None):
-        print("restiore_episode_goal",restore_episode_goal)
-        self.agent.restore_actor_goal_only(step=restore_episode_goal, restore_path=restore_path_goal)
-        self.agent.restore_actor(step=restore_episode_goal, restore_path=restore_path_goal)
+    
         #self.agent.memory = np.load('memeory.npy')
         #print(self.agent.memory[0])
         #print(self.agent.memory[1])
@@ -300,6 +298,9 @@ class Worker(object):
         reward_check = 0
 
         if restore_path is not None and restore_episode > 0:
+            print("restiore_episode_goal",restore_episode_goal)
+            self.agent.restore_actor_goal_only(step=restore_episode_goal, restore_path=restore_path_goal)
+            self.agent.restore_actor(step=restore_episode_goal, restore_path=restore_path_goal)
             self.agent.restore_force(restore_episode, restore_path)
 
         total_episode = 0 #+ restore_episode
