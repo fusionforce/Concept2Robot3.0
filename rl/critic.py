@@ -44,7 +44,7 @@ class Critic(nn.Module):
 
     self.task_feat_block1 = nn.Linear(1024, 512)
     self.task_feat_block2 = nn.Linear(512, 256)
-    self.task_feat_block3 = nn.Linear(256, 128)
+    self.task_feat_block3 = nn.Linear(256, 128 + 256)
 
     self.action_feat_block1 = nn.Linear(49 * 7 + 7, 256)
 
@@ -64,10 +64,10 @@ class Critic(nn.Module):
 
   def forward(self, state, task_vec, action):
     bs = state.size(0)
-    img_feat = self.feature_extractor(state)
-    img_feat = self.img_feat_block1(img_feat)
-    img_feat = img_feat.view(-1,256 * 2 * 3)
-    img_feat = self.img_feat_block2(img_feat)
+    # img_feat = self.feature_extractor(state)
+    # img_feat = self.img_feat_block1(img_feat)
+    # img_feat = img_feat.view(-1,256 * 2 * 3)
+    # img_feat = self.img_feat_block2(img_feat)
 
     task_feat = F.relu(self.task_feat_block1(task_vec))
     task_feat = F.relu(self.task_feat_block2(task_feat))
@@ -77,7 +77,8 @@ class Critic(nn.Module):
     action_feat = F.relu(self.action_feat_block2(action_feat))
     action_feat = F.relu(self.action_feat_block3(action_feat))
 
-    critic_feat = torch.cat([img_feat, task_feat, action_feat], -1)
+    # critic_feat = torch.cat([img_feat, task_feat, action_feat], -1)
+    critic_feat = torch.cat([task_feat, action_feat], -1)
     critic_feat = F.relu(self.critic_feat_block1(critic_feat))
     critic_feat = F.relu(self.critic_feat_block2(critic_feat))
     critic_feat = F.relu(self.critic_feat_block3(critic_feat))

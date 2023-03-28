@@ -46,7 +46,7 @@ class Master(nn.Module):
 
     self.task_feat_block1 = nn.Linear(1024, 512)
     self.task_feat_block2 = nn.Linear(512, 256)
-    self.task_feat_block3 = nn.Linear(256, 256)
+    self.task_feat_block3 = nn.Linear(256, 256 + self.img_feat_dim)
 
     self.action_feat_block1 = nn.Linear(256+self.img_feat_dim, 256)
     self.action_feat_block5 = nn.Linear(256, 256)
@@ -88,18 +88,19 @@ class Master(nn.Module):
       self.action_feat_block5])
 
   def forward(self, state, task_vec):
-    img_feat = self.feature_extractor(state) 
-    img_feat = torch.tanh(self.img_feat_block1(img_feat))
-    img_feat = img_feat.view(-1,256 * 2 * 3)
-    img_feat = F.relu(self.img_feat_block2(img_feat))
-    img_feat = F.relu(self.img_feat_block3(img_feat))
-    img_feat = F.relu(torch.tanh(self.img_feat_block4(img_feat)))
+    # img_feat = self.feature_extractor(state) 
+    # img_feat = torch.tanh(self.img_feat_block1(img_feat))
+    # img_feat = img_feat.view(-1,256 * 2 * 3)
+    # img_feat = F.relu(self.img_feat_block2(img_feat))
+    # img_feat = F.relu(self.img_feat_block3(img_feat))
+    # img_feat = F.relu(torch.tanh(self.img_feat_block4(img_feat)))
  
     task_feat = F.relu(self.task_feat_block1(task_vec))
     task_feat = F.relu(self.task_feat_block2(task_feat))
     task_feat = F.relu(self.task_feat_block3(task_feat))
 
-    task_feat = torch.cat([img_feat,task_feat],-1)
+    # task_feat = torch.cat([img_feat,task_feat],-1)
+    
     
 ###################################################################
     action_feat = F.relu(self.action_feat_block1(task_feat))
