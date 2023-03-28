@@ -38,7 +38,7 @@ class Actor(nn.Module):
       nn.ReLU(),
       nn.BatchNorm2d(256),
     )
-    self.img_feat_block2 = nn.Linear(256 * 2 * 3, 256)
+    self.img_feat_block2 = nn.Linear(256 * 2 * 3, 256+128)
 
     self.task_feat_block1 = nn.Linear(1024, 512)
     self.task_feat_block2 = nn.Linear(512, 256)
@@ -89,11 +89,13 @@ class Actor(nn.Module):
     img_feat = img_feat.view(-1,256 * 2 * 3)
     img_feat = self.img_feat_block2(img_feat) 
 
-    task_feat = F.relu(self.task_feat_block1(task_vec))
-    task_feat = F.relu(self.task_feat_block2(task_feat))
-    task_feat = F.relu(self.task_feat_block3(task_feat))
-   
-    action_feat_raw = torch.cat([img_feat,task_feat],-1)
+    # Removing text for unimodal vision baseline
+    # task_feat = F.relu(self.task_feat_block1(task_vec))
+    # task_feat = F.relu(self.task_feat_block2(task_feat))
+    # task_feat = F.relu(self.task_feat_block3(task_feat))
+
+    # action_feat_raw = torch.cat([img_feat,task_feat],-1)
+    action_feat_raw = img_feat
 
     ### generate goal
     action_feat = F.relu(self.action_feat_block1(action_feat_raw))

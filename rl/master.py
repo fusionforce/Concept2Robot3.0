@@ -42,7 +42,7 @@ class Master(nn.Module):
     self.img_feat_dim = 256
     self.img_feat_block2 = nn.Linear(256 * 2 * 3, 256)
     self.img_feat_block3 = nn.Linear(256, 256)
-    self.img_feat_block4 = nn.Linear(256, self.img_feat_dim)
+    self.img_feat_block4 = nn.Linear(256, self.img_feat_dim + 256)
 
     self.task_feat_block1 = nn.Linear(1024, 512)
     self.task_feat_block2 = nn.Linear(512, 256)
@@ -94,12 +94,14 @@ class Master(nn.Module):
     img_feat = F.relu(self.img_feat_block2(img_feat))
     img_feat = F.relu(self.img_feat_block3(img_feat))
     img_feat = F.relu(torch.tanh(self.img_feat_block4(img_feat)))
- 
-    task_feat = F.relu(self.task_feat_block1(task_vec))
-    task_feat = F.relu(self.task_feat_block2(task_feat))
-    task_feat = F.relu(self.task_feat_block3(task_feat))
 
-    task_feat = torch.cat([img_feat,task_feat],-1)
+    # Removing text for unimodal vision baseline
+    # task_feat = F.relu(self.task_feat_block1(task_vec))
+    # task_feat = F.relu(self.task_feat_block2(task_feat))
+    # task_feat = F.relu(self.task_feat_block3(task_feat))
+
+    # task_feat = torch.cat([img_feat,task_feat],-1)
+    task_feat = img_feat
     
 ###################################################################
     action_feat = F.relu(self.action_feat_block1(task_feat))

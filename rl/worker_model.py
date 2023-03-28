@@ -169,7 +169,7 @@ class Worker(object):
             #explore_var = explore_var * self.params.explore_decay ** (total_episode)
 
         print("total_episode", total_episode, "var", explore_var)
-
+ 
         for ep_iter in range(1, self.params.max_ep):
             observation = self.env.reset()
             observation = np.reshape(observation, (-1,))
@@ -186,6 +186,7 @@ class Worker(object):
                     #force_pred = force_pred * weights
                 else:
                     explore_var = max(explore_var, 0.2)
+                    # Forward pass of actor: predicts action
                     goal_pred, _ = self.agent.choose_action(observation, self.task_vec)
                     goal_pred = np.random.normal(goal_pred, explore_var)
 
@@ -197,6 +198,7 @@ class Worker(object):
 
                 self.writer.add_scalar("train/explore_var", explore_var, ep_iter)
 
+                # Perform the dmp in the simulator, get reward and next_obs
                 observation_next, reward, done, suc = self.env.step(goal_pred, None, None, reset_flag)
 
                 reset_flag = False
@@ -285,9 +287,6 @@ class Worker(object):
                     break
 
     def train_force(self, restore_episode=0, restore_path=None, restore_episode_goal=0, restore_path_goal=None):
-        print("restiore_episode_goal",restore_episode_goal)
-        self.agent.restore_actor_goal_only(step=restore_episode_goal, restore_path=restore_path_goal)
-        self.agent.restore_actor(step=restore_episode_goal, restore_path=restore_path_goal)
         #self.agent.memory = np.load('memeory.npy')
         #print(self.agent.memory[0])
         #print(self.agent.memory[1])
@@ -300,6 +299,9 @@ class Worker(object):
         reward_check = 0
 
         if restore_path is not None and restore_episode > 0:
+            print("restore_episode_goal",restore_episode_goal)
+            self.agent.restore_actor_goal_only(step=restore_episode_goal, restore_path=restore_path_goal)
+            self.agent.restore_actor(step=restore_episode_goal, restore_path=restore_path_goal)
             self.agent.restore_force(restore_episode, restore_path)
 
         total_episode = 0 #+ restore_episode
@@ -317,7 +319,7 @@ class Worker(object):
             initial_pose = self.env.robotCurrentStatus()
 
             while True:
-                # First generate action
+                # First generate action using actor
                 if total_episode < self.params.start_learning_episode:
                     goal_pred, _ = self.agent.choose_action(observation, self.task_vec)
                     goal_pred_goal_only = goal_pred
@@ -338,6 +340,7 @@ class Worker(object):
                 print("goal_pred_goal_only",goal_pred_goal_only)
                 self.writer.add_scalar("train/explore_var", explore_var, ep_iter)
 
+                # Implement action in simulator, collect reward and next observation
                 observation_next, reward, done, suc = self.env.step(goal_pred, force_pred, None, reset_flag)
 
                 reset_flag = False
