@@ -1,0 +1,4 @@
+imageio==2.15.0
+tensorboardx==2.5.1
+matplotlib==3.3.4
+sh==1.14.3
