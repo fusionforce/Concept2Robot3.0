@@ -9,7 +9,8 @@
 
 
 
-#define SHARED_MEMORY_MAGIC_NUMBER 202007060
+#define SHARED_MEMORY_MAGIC_NUMBER 202010061
+//#define SHARED_MEMORY_MAGIC_NUMBER 202007060
 //#define SHARED_MEMORY_MAGIC_NUMBER 202005070
 //#define SHARED_MEMORY_MAGIC_NUMBER 202002030
 //#define SHARED_MEMORY_MAGIC_NUMBER 202001230
@@ -114,7 +115,11 @@ enum EnumSharedMemoryClientCommand
 	CMD_REMOVE_USER_DATA,
 	CMD_COLLISION_FILTER,
 	CMD_REQUEST_MESH_DATA,
+	
+	CMD_PERFORM_COLLISION_DETECTION,
+	CMD_RESET_MESH_DATA,
 
+	CMD_REQUEST_TETRA_MESH_DATA,
 	//don't go beyond this command!
 	CMD_MAX_CLIENT_COMMANDS,
 };
@@ -237,6 +242,13 @@ enum EnumSharedMemoryServerStatus
 
 	CMD_REQUEST_MESH_DATA_COMPLETED,
 	CMD_REQUEST_MESH_DATA_FAILED,
+
+	CMD_PERFORM_COLLISION_DETECTION_COMPLETED,
+	CMD_RESET_MESH_DATA_COMPLETED,
+	CMD_RESET_MESH_DATA_FAILED,
+
+	CMD_REQUEST_TETRA_MESH_DATA_COMPLETED,
+	CMD_REQUEST_TETRA_MESH_DATA_FAILED,
 	//don't go beyond 'CMD_MAX_SERVER_COMMANDS!
 	CMD_MAX_SERVER_COMMANDS
 };
@@ -393,6 +405,7 @@ struct b3DynamicsInfo
 	double m_contactProcessingThreshold;
 	int m_frictionAnchor;
 	double m_collisionMargin;
+	int m_dynamicType;
 };
 
 // copied from btMultiBodyLink.h
@@ -453,12 +466,12 @@ struct b3MeshVertex
 	double x, y, z, w;
 };
 
-
 enum eMeshDataFlags
 {
-	B3_MESH_DATA_SIMULATION_MESH=1,
-	B3_MESH_DATA_SIMULATION_INDICES,
-	B3_MESH_DATA_GRAPHICS_INDICES,
+	B3_MESH_DATA_SIMULATION_MESH = 1,
+	B3_MESH_DATA_SIMULATION_INDICES = 2,
+	B3_MESH_DATA_GRAPHICS_INDICES = 4,
+	B3_MESH_DATA_SIMULATION_MESH_VELOCITY = 8,
 };
 
 enum eMeshDataEnum
@@ -468,6 +481,17 @@ enum eMeshDataEnum
 };
 
 struct b3MeshData
+{
+	int m_numVertices;
+	struct b3MeshVertex* m_vertices;
+};
+
+enum eTetraMeshDataEnum
+{
+	B3_TETRA_MESH_DATA_FLAGS=2,
+};
+
+struct b3TetraMeshData
 {
 	int m_numVertices;
 	struct b3MeshVertex* m_vertices;
@@ -609,6 +633,7 @@ enum b3ResetSimulationFlags
 	RESET_USE_DEFORMABLE_WORLD=1,
 	RESET_USE_DISCRETE_DYNAMICS_WORLD=2,
 	RESET_USE_SIMPLE_BROADPHASE=4,
+	RESET_USE_REDUCED_DEFORMABLE_WORLD=8,
 };
 
 struct b3BodyNotificationArgs
@@ -1066,6 +1091,13 @@ struct b3ForwardDynamicsAnalyticsArgs
 	int m_numIslands;
 	int m_numSolverCalls;
 	struct b3ForwardDynamicsAnalyticsIslandData m_islandData[MAX_ISLANDS_ANALYTICS];
+};
+
+enum eDynamicTypes
+{
+	eDynamic= 0,
+	eStatic= 1,
+	eKinematic= 2
 };
 
 enum eFileIOActions

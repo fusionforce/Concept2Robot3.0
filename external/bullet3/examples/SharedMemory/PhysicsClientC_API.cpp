@@ -260,6 +260,17 @@ B3_SHARED_API void b3LoadMJCFCommandSetFlags(b3SharedMemoryCommandHandle command
 	}
 }
 
+B3_SHARED_API void b3LoadMJCFCommandSetUseMultiBody(b3SharedMemoryCommandHandle commandHandle, int useMultiBody)
+{
+	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
+	b3Assert(command->m_type == CMD_LOAD_MJCF);
+	if (command->m_type == CMD_LOAD_MJCF)
+	{
+		command->m_updateFlags |= URDF_ARGS_USE_MULTIBODY;
+		command->m_mjcfArguments.m_useMultiBody = useMultiBody;
+	}
+}
+
 B3_SHARED_API b3SharedMemoryCommandHandle b3LoadSoftBodyCommandInit(b3PhysicsClientHandle physClient, const char* fileName)
 {
 	PhysicsClient* cl = (PhysicsClient*)physClient;
@@ -977,6 +988,19 @@ B3_SHARED_API b3SharedMemoryCommandHandle b3InitStepSimulationCommand2(b3SharedM
 	return (b3SharedMemoryCommandHandle)command;
 }
 
+
+B3_SHARED_API b3SharedMemoryCommandHandle b3InitPerformCollisionDetectionCommand(b3PhysicsClientHandle physClient)
+{
+	PhysicsClient* cl = (PhysicsClient*)physClient;
+	b3Assert(cl);
+	b3Assert(cl->canSubmitCommand());
+	struct SharedMemoryCommand* command = cl->getAvailableSharedMemoryCommand();
+	b3Assert(command);
+	command->m_type = CMD_PERFORM_COLLISION_DETECTION;
+	command->m_updateFlags = 0;
+	return (b3SharedMemoryCommandHandle)command;
+}
+
 B3_SHARED_API b3SharedMemoryCommandHandle b3InitResetSimulationCommand(b3PhysicsClientHandle physClient)
 {
 	PhysicsClient* cl = (PhysicsClient*)physClient;
@@ -1043,6 +1067,7 @@ B3_SHARED_API b3SharedMemoryCommandHandle b3JointControlCommandInit2Internal(b3S
 		command->m_sendDesiredStateCommandArgument.m_Kp[i] = 0;
 		command->m_sendDesiredStateCommandArgument.m_Kd[i] = 0;
 		command->m_sendDesiredStateCommandArgument.m_desiredStateForceTorque[i] = 0;
+		command->m_sendDesiredStateCommandArgument.m_damping[i] = 0;
 	}
 	command->m_sendDesiredStateCommandArgument.m_desiredStateQ[3] = 1;
 	return (b3SharedMemoryCommandHandle)command;
@@ -1090,6 +1115,22 @@ B3_SHARED_API int b3JointControlSetKp(b3SharedMemoryCommandHandle commandHandle,
 	return 0;
 }
 
+B3_SHARED_API int b3JointControlSetKpMultiDof(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double* kps, int dofCount)
+{
+	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
+	b3Assert(command);
+	if ((dofIndex >= 0) && (dofIndex < MAX_DEGREE_OF_FREEDOM ) && dofCount >= 0 && dofCount <= 4)
+	{
+		for (int dof = 0; dof < dofCount; dof++)
+		{
+			command->m_sendDesiredStateCommandArgument.m_Kp[dofIndex + dof] = kps[dof];
+			command->m_updateFlags |= SIM_DESIRED_STATE_HAS_KP;
+			command->m_sendDesiredStateCommandArgument.m_hasDesiredStateFlags[dofIndex + dof] |= SIM_DESIRED_STATE_HAS_KP;
+		}
+	}
+	return 0;
+}
+
 B3_SHARED_API int b3JointControlSetKd(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double value)
 {
 	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
@@ -1099,6 +1140,22 @@ B3_SHARED_API int b3JointControlSetKd(b3SharedMemoryCommandHandle commandHandle,
 		command->m_sendDesiredStateCommandArgument.m_Kd[dofIndex] = value;
 		command->m_updateFlags |= SIM_DESIRED_STATE_HAS_KD;
 		command->m_sendDesiredStateCommandArgument.m_hasDesiredStateFlags[dofIndex] |= SIM_DESIRED_STATE_HAS_KD;
+	}
+	return 0;
+}
+
+B3_SHARED_API int b3JointControlSetKdMultiDof(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double* kds, int dofCount)
+{
+	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
+	b3Assert(command);
+	if ((dofIndex >= 0) && (dofIndex < MAX_DEGREE_OF_FREEDOM ) && dofCount >= 0 && dofCount <= 4)
+	{
+		for (int dof = 0; dof < dofCount; dof++)
+		{
+			command->m_sendDesiredStateCommandArgument.m_Kd[dofIndex + dof] = kds[dof];
+			command->m_updateFlags |= SIM_DESIRED_STATE_HAS_KD;
+			command->m_sendDesiredStateCommandArgument.m_hasDesiredStateFlags[dofIndex + dof] |= SIM_DESIRED_STATE_HAS_KD;
+		}
 	}
 	return 0;
 }
@@ -1156,6 +1213,35 @@ B3_SHARED_API int b3JointControlSetDesiredForceTorqueMultiDof(b3SharedMemoryComm
 			command->m_sendDesiredStateCommandArgument.m_desiredStateForceTorque[dofIndex+dof] = forces[dof];
 			command->m_updateFlags |= SIM_DESIRED_STATE_HAS_MAX_FORCE;
 			command->m_sendDesiredStateCommandArgument.m_hasDesiredStateFlags[dofIndex + dof] |= SIM_DESIRED_STATE_HAS_MAX_FORCE;
+		}
+	}
+	return 0;
+}
+
+B3_SHARED_API int b3JointControlSetDamping(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double value)
+{
+	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
+	b3Assert(command);
+	if ((dofIndex >= 0) && (dofIndex < MAX_DEGREE_OF_FREEDOM))
+	{
+		command->m_sendDesiredStateCommandArgument.m_damping[dofIndex] = value;
+		command->m_updateFlags |= SIM_DESIRED_STATE_HAS_DAMPING;
+		command->m_sendDesiredStateCommandArgument.m_hasDesiredStateFlags[dofIndex] |= SIM_DESIRED_STATE_HAS_DAMPING;
+	}
+	return 0;
+}
+
+B3_SHARED_API int b3JointControlSetDampingMultiDof(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double* damping, int dofCount)
+{
+	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
+	b3Assert(command);
+	if ((dofIndex >= 0) && (dofIndex < MAX_DEGREE_OF_FREEDOM ) && dofCount >= 0 && dofCount <= 4)
+	{
+		for (int dof = 0; dof < dofCount; dof++)
+		{
+			command->m_sendDesiredStateCommandArgument.m_damping[dofIndex+dof] = damping[dof];
+			command->m_updateFlags |= SIM_DESIRED_STATE_HAS_DAMPING;
+			command->m_sendDesiredStateCommandArgument.m_hasDesiredStateFlags[dofIndex + dof] |= SIM_DESIRED_STATE_HAS_DAMPING;
 		}
 	}
 	return 0;
@@ -1398,6 +1484,28 @@ B3_SHARED_API int b3CreateCollisionShapeAddSphere(b3SharedMemoryCommandHandle co
 	return -1;
 }
 
+B3_SHARED_API b3SharedMemoryCommandHandle b3ResetMeshDataCommandInit(b3PhysicsClientHandle physClient, int bodyUniqueId, int numVertices, const double* vertices)
+{
+	PhysicsClient* cl = (PhysicsClient*)physClient;
+	b3Assert(cl);
+	b3Assert(cl->canSubmitCommand());
+	if (cl)
+	{
+		struct SharedMemoryCommand* command = cl->getAvailableSharedMemoryCommand();
+		b3Assert(command);
+		command->m_type = CMD_RESET_MESH_DATA;
+		command->m_updateFlags = 0;
+		command->m_resetMeshDataArgs.m_numVertices = numVertices;
+		command->m_resetMeshDataArgs.m_bodyUniqueId = bodyUniqueId;
+		command->m_resetMeshDataArgs.m_flags = 0;
+		int totalUploadSizeInBytes = numVertices * sizeof(double) *3;
+		cl->uploadBulletFileToSharedMemory((const char*)vertices, totalUploadSizeInBytes);
+		return (b3SharedMemoryCommandHandle)command;
+	}
+	return 0;
+}
+
+
 B3_SHARED_API b3SharedMemoryCommandHandle b3GetMeshDataCommandInit(b3PhysicsClientHandle physClient, int bodyUniqueId, int linkIndex)
 {
 	PhysicsClient* cl = (PhysicsClient*)physClient;
@@ -1412,6 +1520,24 @@ B3_SHARED_API b3SharedMemoryCommandHandle b3GetMeshDataCommandInit(b3PhysicsClie
 		command->m_requestMeshDataArgs.m_startingVertex = 0;
 		command->m_requestMeshDataArgs.m_bodyUniqueId = bodyUniqueId;
 		command->m_requestMeshDataArgs.m_linkIndex = linkIndex;
+		return (b3SharedMemoryCommandHandle)command;
+	}
+	return 0;
+}
+
+B3_SHARED_API b3SharedMemoryCommandHandle b3GetTetraMeshDataCommandInit(b3PhysicsClientHandle physClient, int bodyUniqueId)
+{
+	PhysicsClient* cl = (PhysicsClient*)physClient;
+	b3Assert(cl);
+	b3Assert(cl->canSubmitCommand());
+	if (cl)
+	{
+		struct SharedMemoryCommand* command = cl->getAvailableSharedMemoryCommand();
+		b3Assert(command);
+		command->m_type = CMD_REQUEST_TETRA_MESH_DATA;
+		command->m_updateFlags = 0;
+		command->m_resetTetraMeshDataArgs.m_startingVertex = 0;
+		command->m_resetTetraMeshDataArgs.m_bodyUniqueId = bodyUniqueId;
 		return (b3SharedMemoryCommandHandle)command;
 	}
 	return 0;
@@ -1441,12 +1567,49 @@ B3_SHARED_API void b3GetMeshDataSetFlags(b3SharedMemoryCommandHandle commandHand
 	}
 }
 
+B3_SHARED_API void b3GetTetraMeshDataSetFlags(b3SharedMemoryCommandHandle commandHandle, int flags)
+{
+	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
+	b3Assert(command);
+	b3Assert(command->m_type == CMD_REQUEST_TETRA_MESH_DATA);
+	if (command->m_type == CMD_REQUEST_TETRA_MESH_DATA)
+	{
+		command->m_updateFlags = B3_TETRA_MESH_DATA_FLAGS;
+		command->m_requestMeshDataArgs.m_flags = flags;
+	}
+}
+
+B3_SHARED_API void b3GetMeshDataSimulationMesh(b3SharedMemoryCommandHandle commandHandle)
+{
+	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
+	b3Assert(command);
+	b3Assert(command->m_type == CMD_REQUEST_MESH_DATA);
+	command->m_updateFlags |= B3_MESH_DATA_SIMULATION_MESH;
+}
+
+B3_SHARED_API void b3MeshDataSimulationMeshVelocity(b3SharedMemoryCommandHandle commandHandle)
+{
+	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
+	b3Assert(command);
+	b3Assert(command->m_type == CMD_REQUEST_MESH_DATA || command->m_type == CMD_RESET_MESH_DATA);
+	command->m_updateFlags |= B3_MESH_DATA_SIMULATION_MESH_VELOCITY;
+}
+
 B3_SHARED_API void b3GetMeshData(b3PhysicsClientHandle physClient, struct b3MeshData* meshData)
 {
 	PhysicsClient* cl = (PhysicsClient*)physClient;
 	if (cl)
 	{
 		cl->getCachedMeshData(meshData);
+	}
+}
+
+B3_SHARED_API void b3GetTetraMeshData(b3PhysicsClientHandle physClient, struct b3TetraMeshData* meshData)
+{
+	PhysicsClient* cl = (PhysicsClient*)physClient;
+	if (cl)
+	{
+		cl->getCachedTetraMeshData(meshData);
 	}
 }
 
@@ -2097,6 +2260,7 @@ B3_SHARED_API int b3CreateMultiBodyLink(b3SharedMemoryCommandHandle commandHandl
 			command->m_createMultiBodyArgs.m_linkJointAxis[3 * linkIndex + 2] = linkJointAxis[2];
 
 			command->m_createMultiBodyArgs.m_linkMasses[linkIndex] = linkMass;
+			
 			command->m_createMultiBodyArgs.m_numLinks++;
 			return numLinks;
 		}
@@ -3024,6 +3188,16 @@ B3_SHARED_API int b3GetStatusPluginCommandResult(b3SharedMemoryStatusHandle stat
 	return statusUniqueId;
 }
 
+B3_SHARED_API int b3GetStatusPluginCommandReturnData(b3PhysicsClientHandle physClient, struct b3UserDataValue* valueOut)
+{
+	PhysicsClient* cl = (PhysicsClient*)physClient;
+	if (cl)
+	{
+		return cl->getCachedReturnData(valueOut);
+	}
+	return false;
+}
+
 B3_SHARED_API int b3GetStatusPluginUniqueId(b3SharedMemoryStatusHandle statusHandle)
 {
 	int statusUniqueId = -1;
@@ -3059,7 +3233,7 @@ B3_SHARED_API void b3CustomCommandExecutePluginCommand(b3SharedMemoryCommandHand
 	{
 		command->m_updateFlags |= CMD_CUSTOM_COMMAND_EXECUTE_PLUGIN_COMMAND;
 		command->m_customCommandArgs.m_pluginUniqueId = pluginUniqueId;
-
+		command->m_customCommandArgs.m_startingReturnBytes = 0;
 		command->m_customCommandArgs.m_arguments.m_numInts = 0;
 		command->m_customCommandArgs.m_arguments.m_numFloats = 0;
 		command->m_customCommandArgs.m_arguments.m_text[0] = 0;
@@ -3209,6 +3383,29 @@ B3_SHARED_API int b3ChangeDynamicsInfoSetJointLimitForce(b3SharedMemoryCommandHa
 	return 0;
 }
 
+B3_SHARED_API int b3ChangeDynamicsInfoSetSleepThreshold(b3SharedMemoryCommandHandle commandHandle, int bodyUniqueId, double sleepThreshold)
+{
+	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
+	b3Assert(command->m_type == CMD_CHANGE_DYNAMICS_INFO);
+	command->m_changeDynamicsInfoArgs.m_bodyUniqueId = bodyUniqueId;
+	command->m_changeDynamicsInfoArgs.m_sleepThreshold = sleepThreshold;
+	command->m_updateFlags |= CHANGE_DYNAMICS_INFO_SET_SLEEP_THRESHOLD;
+	return 0;
+}
+
+
+
+B3_SHARED_API int b3ChangeDynamicsInfoSetDynamicType(b3SharedMemoryCommandHandle commandHandle, int bodyUniqueId, int linkIndex, int dynamicType)
+{
+	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
+	b3Assert(command->m_type == CMD_CHANGE_DYNAMICS_INFO);
+	b3Assert(dynamicType == eDynamic || dynamicType == eStatic || dynamicType == eKinematic);
+	command->m_changeDynamicsInfoArgs.m_bodyUniqueId = bodyUniqueId;
+	command->m_changeDynamicsInfoArgs.m_linkIndex = linkIndex;
+	command->m_changeDynamicsInfoArgs.m_dynamicType = dynamicType;
+	command->m_updateFlags |= CHANGE_DYNAMICS_INFO_SET_DYNAMIC_TYPE;
+	return 0;
+}
 
 
 
@@ -3855,6 +4052,19 @@ B3_SHARED_API b3SharedMemoryCommandHandle b3InitSyncBodyInfoCommand(b3PhysicsCli
 	return (b3SharedMemoryCommandHandle)command;
 }
 
+B3_SHARED_API b3SharedMemoryCommandHandle b3InitRequestBodyInfoCommand(b3PhysicsClientHandle physClient, int bodyUniqueId)
+{
+	PhysicsClient* cl = (PhysicsClient*)physClient;
+	b3Assert(cl);
+	b3Assert(cl->canSubmitCommand());
+	struct SharedMemoryCommand* command = cl->getAvailableSharedMemoryCommand();
+	b3Assert(command);
+
+	command->m_type = CMD_REQUEST_BODY_INFO;
+	command->m_sdfRequestInfoArgs.m_bodyUniqueId = bodyUniqueId;
+	return (b3SharedMemoryCommandHandle)command;
+}
+
 B3_SHARED_API b3SharedMemoryCommandHandle b3InitSyncUserDataCommand(b3PhysicsClientHandle physClient)
 {
 	PhysicsClient* cl = (PhysicsClient*)physClient;
@@ -4018,6 +4228,44 @@ B3_SHARED_API b3SharedMemoryCommandHandle b3InitUserDebugDrawAddLine3D(b3Physics
 	command->m_userDebugDrawArgs.m_parentObjectUniqueId = -1;
 	command->m_userDebugDrawArgs.m_parentLinkIndex = -1;
 	command->m_userDebugDrawArgs.m_optionFlags = 0;
+
+	return (b3SharedMemoryCommandHandle)command;
+}
+B3_SHARED_API b3SharedMemoryCommandHandle b3InitUserDebugDrawAddPoints3D(b3PhysicsClientHandle physClient, const double positionsXYZ[/*3n*/], const double colorsRGB[/*3n*/], const double pointSize, const double lifeTime, const int pointNum)
+{
+	PhysicsClient* cl = (PhysicsClient*)physClient;
+	b3Assert(cl);
+	b3Assert(cl->canSubmitCommand());
+	struct SharedMemoryCommand* command = cl->getAvailableSharedMemoryCommand();
+	b3Assert(command);
+	command->m_type = CMD_USER_DEBUG_DRAW;
+	command->m_updateFlags = USER_DEBUG_HAS_POINTS;
+
+	command->m_userDebugDrawArgs.m_debugPointNum = pointNum;
+	command->m_userDebugDrawArgs.m_pointSize = pointSize;
+	command->m_userDebugDrawArgs.m_lifeTime = lifeTime;
+	command->m_userDebugDrawArgs.m_parentObjectUniqueId = -1;
+	command->m_userDebugDrawArgs.m_parentLinkIndex = -1;
+	command->m_userDebugDrawArgs.m_optionFlags = 0;
+
+	int totalUploadSizeInBytes = pointNum * sizeof(double) * 3 * 2;
+	char* data = new char[totalUploadSizeInBytes];
+	double* pointPositionsUpload = (double*) data;
+	double* pointColorsUpload = (double*)(data + pointNum * sizeof(double) * 3);
+	for (int i = 0; i < pointNum; i++)
+	{
+		pointPositionsUpload[i * 3 + 0] = positionsXYZ[i * 3 + 0];
+		pointPositionsUpload[i * 3 + 1] = positionsXYZ[i * 3 + 1];
+		pointPositionsUpload[i * 3 + 2] = positionsXYZ[i * 3 + 2];
+	}
+	for (int i = 0; i < pointNum; i++)
+	{
+		pointColorsUpload[i * 3 + 0] = colorsRGB[i * 3 + 0];
+		pointColorsUpload[i * 3 + 1] = colorsRGB[i * 3 + 1];
+		pointColorsUpload[i * 3 + 2] = colorsRGB[i * 3 + 2];
+	}
+	cl->uploadBulletFileToSharedMemory(data, totalUploadSizeInBytes);
+	delete[] data;
 
 	return (b3SharedMemoryCommandHandle)command;
 }
@@ -4451,7 +4699,7 @@ B3_SHARED_API void b3ComputeViewMatrixFromYawPitchRoll(const float cameraTargetP
 
 	b3Scalar yawRad = yaw * b3Scalar(0.01745329251994329547);      // rads per deg
 	b3Scalar pitchRad = pitch * b3Scalar(0.01745329251994329547);  // rads per deg
-	b3Scalar rollRad = 0.0;
+	b3Scalar rollRad = roll * b3Scalar(0.01745329251994329547);      // rads per deg
 	b3Quaternion eyeRot;
 
 	int forwardAxis(-1);
@@ -5942,6 +6190,21 @@ B3_SHARED_API void b3ConfigureOpenGLVisualizerSetLightPosition(b3SharedMemoryCom
 		command->m_configureOpenGLVisualizerArguments.m_lightPosition[2] = lightPosition[2];
 	}
 }
+
+B3_SHARED_API void b3ConfigureOpenGLVisualizerSetLightRgbBackground(b3SharedMemoryCommandHandle commandHandle, const float rgbBackground[3])
+{
+	struct SharedMemoryCommand* command = (struct SharedMemoryCommand*)commandHandle;
+	b3Assert(command);
+	b3Assert(command->m_type == CMD_CONFIGURE_OPENGL_VISUALIZER);
+	if (command->m_type == CMD_CONFIGURE_OPENGL_VISUALIZER)
+	{
+		command->m_updateFlags |= COV_SET_RGB_BACKGROUND;
+		command->m_configureOpenGLVisualizerArguments.m_rgbBackground[0] = rgbBackground[0];
+		command->m_configureOpenGLVisualizerArguments.m_rgbBackground[1] = rgbBackground[1];
+		command->m_configureOpenGLVisualizerArguments.m_rgbBackground[2] = rgbBackground[2];
+	}
+}
+
 
 B3_SHARED_API void b3ConfigureOpenGLVisualizerSetShadowMapResolution(b3SharedMemoryCommandHandle commandHandle, int shadowMapResolution)
 {

@@ -133,6 +133,8 @@ enum MultiThreadedGUIHelperCommunicationEnums
 	eGUIUserDebugRemoveAllParameters,
 	eGUIHelperResetCamera,
 	eGUIHelperChangeGraphicsInstanceFlags,
+	eGUIHelperSetRgbBackground,
+	eGUIUserDebugAddPoints,
 };
 
 #include <stdio.h>
@@ -490,6 +492,19 @@ struct UserDebugDrawLine
 	int m_replaceItemUid;
 };
 
+struct UserDebugDrawPoint
+{
+	const double* m_debugPointPositions;
+	const double* m_debugPointColors;
+	int m_debugPointNum;
+	double m_pointSize;
+
+	double m_lifeTime;
+	int m_itemUniqueId;
+	int m_trackingVisualShapeIndex;
+	int m_replaceItemUid;
+};
+
 struct UserDebugParameter
 {
 	char m_text[1024];
@@ -640,7 +655,7 @@ public:
 		return m_debugMode;
 	}
 
-	virtual void clearLines() override
+	virtual void clearLines()
 	{
 		m_hashedLines.clear();
 		m_sortedIndices.clear();
@@ -709,7 +724,7 @@ public:
 	{
 		BT_PROFILE("mainThreadRelease");
 
-		getCriticalSection()->setSharedParam(1, eGUIHelperIdle);
+		setSharedParam(1, eGUIHelperIdle);
 		getCriticalSection3()->lock();
 		getCriticalSection2()->unlock();
 		getCriticalSection()->lock();
@@ -724,7 +739,9 @@ public:
 
 		if (m_skipGraphicsUpdate)
 		{
+			this->m_csGUI->lock();
 			getCriticalSection()->setSharedParam(1, eGUIHelperIdle);
+			this->m_csGUI->unlock();
 			m_cs->unlock();
 			return;
 		}
@@ -734,9 +751,18 @@ public:
 		m_cs3->lock();
 		m_cs3->unlock();
 
-		while (m_cs->getSharedParam(1) != eGUIHelperIdle)
+
+		m_csGUI->lock();
+		unsigned int cachedSharedParam = m_cs->getSharedParam(1);
+		m_csGUI->unlock();
+
+		
+		while (cachedSharedParam != eGUIHelperIdle)
 		{
 			b3Clock::usleep(0);
+			m_csGUI->lock();
+			cachedSharedParam = m_cs->getSharedParam(1);
+			m_csGUI->unlock();
 		}
 	}
 
@@ -818,10 +844,11 @@ public:
 	btVector3 m_color3;
 	virtual void createRigidBodyGraphicsObject(btRigidBody* body, const btVector3& color)
 	{
-		m_body = body;
-		m_color3 = color;
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperCreateRigidBodyGraphicsObject);
+
+    m_body = body;
+		m_color3 = color;
+		setSharedParam(1, eGUIHelperCreateRigidBodyGraphicsObject);
 		workerThreadWait();
 	}
 
@@ -830,19 +857,21 @@ public:
 
 	virtual void createCollisionObjectGraphicsObject(btCollisionObject* obj, const btVector3& color)
 	{
-		m_obj = obj;
-		m_color2 = color;
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperCreateCollisionObjectGraphicsObject);
+
+    m_obj = obj;
+		m_color2 = color;
+		setSharedParam(1, eGUIHelperCreateCollisionObjectGraphicsObject);
 		workerThreadWait();
 	}
 
 	btCollisionShape* m_colShape;
 	virtual void createCollisionShapeGraphicsObject(btCollisionShape* collisionShape)
 	{
-		m_colShape = collisionShape;
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperCreateCollisionShapeGraphicsObject);
+
+    m_colShape = collisionShape;
+    setSharedParam(1, eGUIHelperCreateCollisionShapeGraphicsObject);
 		workerThreadWait();
 	}
 
@@ -889,9 +918,10 @@ public:
 
 	virtual void removeTexture(int textureUid)
 	{
-		m_removeTextureUid = textureUid;
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperRemoveTexture);
+
+    m_removeTextureUid = textureUid;
+		setSharedParam(1, eGUIHelperRemoveTexture);
 
 		workerThreadWait();
 	}
@@ -901,11 +931,12 @@ public:
 	int m_updateNumShapeVertices;
 	virtual void updateShape(int shapeIndex, float* vertices, int numVertices)
 	{
-		m_updateShapeIndex = shapeIndex;
+		m_cs->lock();
+
+    m_updateShapeIndex = shapeIndex;
 		m_updateShapeVertices = vertices;
 		m_updateNumShapeVertices = numVertices;
-		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperUpdateShape);
+		setSharedParam(1, eGUIHelperUpdateShape);
 		workerThreadWait();
 	}
 	virtual int registerTexture(const unsigned char* texels, int width, int height)
@@ -915,12 +946,13 @@ public:
 		{
 			return *cachedTexture;
 		}
-		m_texels = texels;
+		m_cs->lock();
+
+    m_texels = texels;
 		m_textureWidth = width;
 		m_textureHeight = height;
 
-		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperRegisterTexture);
+		setSharedParam(1, eGUIHelperRegisterTexture);
 
 		workerThreadWait();
 		m_cachedTextureIds.insert(texels, m_textureId);
@@ -928,31 +960,44 @@ public:
 	}
 	virtual int registerGraphicsShape(const float* vertices, int numvertices, const int* indices, int numIndices, int primitiveType, int textureId)
 	{
-		m_vertices = vertices;
+		m_cs->lock();
+    m_csGUI->lock();
+    m_vertices = vertices;
 		m_numvertices = numvertices;
 		m_indices = indices;
 		m_numIndices = numIndices;
 		m_primitiveType = primitiveType;
 		m_textureId = textureId;
-
-		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperRegisterGraphicsShape);
+    m_csGUI->unlock();
+		setSharedParam(1, eGUIHelperRegisterGraphicsShape);
 		workerThreadWait();
 
-		return m_shapeIndex;
+    m_csGUI->lock();
+    int shapeIndex = m_shapeIndex;
+    m_csGUI->unlock();
+
+
+		return shapeIndex;
 	}
 
 	int m_visualizerFlag;
 	int m_visualizerEnable;
 	int m_renderedFrames;
 
+  void setSharedParam(int slot, int param)
+  {
+    m_csGUI->lock();
+    m_cs->setSharedParam(slot, param);
+    m_csGUI->unlock();
+  }
 	void setVisualizerFlag(int flag, int enable)
 	{
-		m_visualizerFlag = flag;
+		m_cs->lock();
+
+    m_visualizerFlag = flag;
 		m_visualizerEnable = enable;
 
-		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperSetVisualizerFlag);
+		setSharedParam(1, eGUIHelperSetVisualizerFlag);
 		workerThreadWait();
 	}
 
@@ -970,16 +1015,16 @@ public:
 		m_scaling = scaling;
 
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperRegisterGraphicsInstance);
+		setSharedParam(1, eGUIHelperRegisterGraphicsInstance);
 		workerThreadWait();
 		return m_instanceId;
 	}
 
 	virtual void removeAllGraphicsInstances()
 	{
+    m_cs->lock();
 		m_cachedTextureIds.clear();
-		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperRemoveAllGraphicsInstances);
+    setSharedParam(1, eGUIHelperRemoveAllGraphicsInstances);
 		workerThreadWait();
 	}
 
@@ -988,7 +1033,7 @@ public:
 	{
 		m_graphicsInstanceRemove = graphicsUid;
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperRemoveGraphicsInstance);
+		setSharedParam(1, eGUIHelperRemoveGraphicsInstance);
 		workerThreadWait();
 	}
 
@@ -999,7 +1044,7 @@ public:
 	{
 		m_getShapeIndex_instance = instance;
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperGetShapeIndexFromInstance);
+		setSharedParam(1, eGUIHelperGetShapeIndexFromInstance);
 		getShapeIndex_shapeIndex = -1;
 		workerThreadWait();
 		return getShapeIndex_shapeIndex;
@@ -1012,7 +1057,7 @@ public:
 		m_graphicsInstanceChangeTextureShapeIndex = shapeIndex;
 		m_graphicsInstanceChangeTextureId = textureUid;
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperChangeGraphicsInstanceTextureId);
+		setSharedParam(1, eGUIHelperChangeGraphicsInstanceTextureId);
 		workerThreadWait();
 	}
 
@@ -1028,7 +1073,7 @@ public:
 		m_changeTextureWidth = width;
 		m_changeTextureHeight = height;
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperChangeTexture);
+	  setSharedParam(1, eGUIHelperChangeTexture);
 		workerThreadWait();
 	}
 
@@ -1042,7 +1087,7 @@ public:
 		m_rgbaColor[2] = rgbaColor[2];
 		m_rgbaColor[3] = rgbaColor[3];
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperChangeGraphicsInstanceRGBAColor);
+		setSharedParam(1, eGUIHelperChangeGraphicsInstanceRGBAColor);
 		workerThreadWait();
 	}
 
@@ -1054,11 +1099,22 @@ public:
 		m_graphicsInstanceFlagsInstanceUid = instanceUid;
 		m_graphicsInstanceFlags = flags;
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperChangeGraphicsInstanceFlags);
+		setSharedParam(1, eGUIHelperChangeGraphicsInstanceFlags);
 		workerThreadWait();
 	}
 
-	
+	double m_rgbBackground[3];
+	virtual void setBackgroundColor(const double rgbBackground[3])
+	{
+		m_cs->lock();
+		m_rgbBackground[0] = rgbBackground[0];
+		m_rgbBackground[1] = rgbBackground[1];
+		m_rgbBackground[2] = rgbBackground[2];
+		
+		setSharedParam(1, eGUIHelperSetRgbBackground);
+		workerThreadWait();
+		
+	}
 
 
 	int m_graphicsInstanceChangeScaling;
@@ -1070,7 +1126,7 @@ public:
 		m_baseScaling[1] = scaling[1];
 		m_baseScaling[2] = scaling[2];
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperChangeGraphicsInstanceScaling);
+		setSharedParam(1, eGUIHelperChangeGraphicsInstanceScaling);
 		workerThreadWait();
 	}
 
@@ -1083,7 +1139,7 @@ public:
 		m_specularColor[1] = specularColor[1];
 		m_specularColor[2] = specularColor[2];
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperChangeGraphicsInstanceSpecularColor);
+		setSharedParam(1, eGUIHelperChangeGraphicsInstanceSpecularColor);
 		workerThreadWait();
 	}
 
@@ -1134,7 +1190,7 @@ public:
 #ifdef SYNC_CAMERA_USING_GUI_CS
 		m_csGUI->unlock();
 #else
-		m_cs->setSharedParam(1, eGUIHelperResetCamera);
+		setSharedParam(1, eGUIHelperResetCamera);
 		workerThreadWait();
 		m_childGuiHelper->resetCamera(camDist, yaw, pitch, camPosX, camPosY, camPosZ);
 #endif //SYNC_CAMERA_USING_GUI_CS
@@ -1182,7 +1238,7 @@ public:
 		m_destinationHeight = destinationHeight;
 		m_numPixelsCopied = numPixelsCopied;
 
-		m_cs->setSharedParam(1, eGUIHelperCopyCameraImageData);
+		setSharedParam(1, eGUIHelperCopyCameraImageData);
 		workerThreadWait();
 	}
 
@@ -1209,7 +1265,7 @@ public:
 		m_destinationHeight = destinationHeight;
 		m_numPixelsCopied = numPixelsCopied;
 
-		m_cs->setSharedParam(1, eGUIHelperDisplayCameraImageData);
+		setSharedParam(1, eGUIHelperDisplayCameraImageData);
 		workerThreadWait();
 	}
 
@@ -1235,7 +1291,7 @@ public:
 	{
 		m_dynamicsWorld = rbWorld;
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIHelperAutogenerateGraphicsObjects);
+		setSharedParam(1, eGUIHelperAutogenerateGraphicsObjects);
 		workerThreadWait();
 	}
 
@@ -1288,7 +1344,7 @@ public:
 		m_tmpText.m_textOrientation[3] = orientation[3];
 
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIUserDebugAddText);
+		setSharedParam(1, eGUIUserDebugAddText);
 		m_resultUserDebugTextUid = -1;
 		workerThreadWait();
 
@@ -1321,7 +1377,7 @@ public:
 		m_tmpParam.m_itemUniqueId = m_uidGenerator++;
 
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIUserDebugAddParameter);
+	  setSharedParam(1, eGUIUserDebugAddParameter);
 		m_userDebugParamUid = -1;
 		workerThreadWait();
 
@@ -1376,12 +1432,61 @@ public:
 		{
 
 			m_cs->lock();
-			m_cs->setSharedParam(1, eGUIUserDebugAddLine);
+			setSharedParam(1, eGUIUserDebugAddLine);
 			m_resultDebugLineUid = -1;
 			workerThreadWait();
 		}
 		return m_resultDebugLineUid;
 	}
+
+	btAlignedObjectArray<UserDebugDrawPoint> m_userDebugPoints;
+	UserDebugDrawPoint m_tmpPoint;
+	int m_resultDebugPointUid;
+
+	virtual int addUserDebugPoints(const double* debugPointPositions, const double* debugPointColors, double pointSize, double lifeTime, int trackingVisualShapeIndex, int replaceItemUid, int debugPointNum)
+	{
+		m_tmpPoint.m_lifeTime = lifeTime;
+		m_tmpPoint.m_pointSize = pointSize;
+
+		m_tmpPoint.m_itemUniqueId = replaceItemUid < 0 ? m_uidGenerator++ : replaceItemUid;
+		m_tmpPoint.m_debugPointPositions = debugPointPositions;
+		m_tmpPoint.m_debugPointColors = debugPointColors;
+		m_tmpPoint.m_debugPointNum = debugPointNum;
+
+		m_tmpPoint.m_trackingVisualShapeIndex = trackingVisualShapeIndex;
+		m_tmpPoint.m_replaceItemUid = replaceItemUid;
+
+		//don't block when replacing an item
+		if (replaceItemUid>=0 && replaceItemUid<m_userDebugPoints.size())
+		{
+			//find the right slot
+
+			int slot=-1;
+			for (int i=0;i<m_userDebugPoints.size();i++)
+			{
+				if (replaceItemUid == m_userDebugPoints[i].m_itemUniqueId)
+				{
+						slot = i;
+				}
+			}
+
+			if (slot>=0)
+			{
+				m_userDebugPoints[slot] = m_tmpPoint;
+			}
+			m_resultDebugPointUid = replaceItemUid;
+		}
+		else
+		{
+
+			m_cs->lock();
+			setSharedParam(1, eGUIUserDebugAddPoints);
+			m_resultDebugPointUid = -1;
+			workerThreadWait();
+		}
+		return m_resultDebugPointUid;
+	}
+
 
 	int m_removeDebugItemUid;
 
@@ -1389,20 +1494,20 @@ public:
 	{
 		m_removeDebugItemUid = debugItemUniqueId;
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIUserDebugRemoveItem);
+		setSharedParam(1, eGUIUserDebugRemoveItem);
 		workerThreadWait();
 	}
 	virtual void removeAllUserDebugItems()
 	{
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIUserDebugRemoveAllItems);
+		setSharedParam(1, eGUIUserDebugRemoveAllItems);
 		workerThreadWait();
 	}
 
 	virtual void removeAllUserParameters()
 	{
 		m_cs->lock();
-		m_cs->setSharedParam(1, eGUIUserDebugRemoveAllParameters);
+		setSharedParam(1, eGUIUserDebugRemoveAllParameters);
 		workerThreadWait();
 	}
 
@@ -1414,7 +1519,7 @@ public:
 	{
 		m_cs->lock();
 		m_mp4FileName = mp4FileName;
-		m_cs->setSharedParam(1, eGUIDumpFramesToVideo);
+		setSharedParam(1, eGUIDumpFramesToVideo);
 		workerThreadWait();
 		m_mp4FileName = 0;
 	}
@@ -1887,8 +1992,10 @@ void PhysicsServerExample::initPhysics()
 		}
 	}
 	m_args[0].m_cs->lock();
+  m_args[0].m_csGUI->lock();
 	m_args[0].m_cs->setSharedParam(1, eGUIHelperIdle);
-	m_args[0].m_cs->unlock();
+  m_args[0].m_csGUI->unlock();
+  m_args[0].m_cs->unlock();
 	m_args[0].m_cs2->lock();
 
 	{
@@ -1995,7 +2102,12 @@ void PhysicsServerExample::updateGraphics()
 	}
 	m_multiThreadedHelper->getCriticalSectionGUI()->unlock();
 #endif
-	switch (m_multiThreadedHelper->getCriticalSection()->getSharedParam(1))
+
+	m_multiThreadedHelper->getCriticalSectionGUI()->lock();
+	unsigned int cachedSharedParam = m_multiThreadedHelper->getCriticalSection()->getSharedParam(1);
+	m_multiThreadedHelper->getCriticalSectionGUI()->unlock();
+
+	switch (cachedSharedParam)
 	{
 		case eGUIHelperCreateCollisionShapeGraphicsObject:
 		{
@@ -2048,14 +2160,22 @@ void PhysicsServerExample::updateGraphics()
 		case eGUIHelperRegisterGraphicsShape:
 		{
 			B3_PROFILE("eGUIHelperRegisterGraphicsShape");
-			m_multiThreadedHelper->m_shapeIndex = m_multiThreadedHelper->m_childGuiHelper->registerGraphicsShape(
+			int shapeIndex = m_multiThreadedHelper->m_childGuiHelper->registerGraphicsShape(
 				m_multiThreadedHelper->m_vertices,
 				m_multiThreadedHelper->m_numvertices,
 				m_multiThreadedHelper->m_indices,
 				m_multiThreadedHelper->m_numIndices,
 				m_multiThreadedHelper->m_primitiveType,
 				m_multiThreadedHelper->m_textureId);
-			m_multiThreadedHelper->mainThreadRelease();
+
+       m_multiThreadedHelper->getCriticalSectionGUI()->lock();
+       m_multiThreadedHelper->m_shapeIndex = shapeIndex;
+       m_multiThreadedHelper->getCriticalSectionGUI()->unlock();
+
+
+      m_multiThreadedHelper->mainThreadRelease();
+
+
 			break;
 		}
 
@@ -2156,8 +2276,8 @@ void PhysicsServerExample::updateGraphics()
 
 			m_multiThreadedHelper->m_childGuiHelper->setVisualizerFlag(m_multiThreadedHelper->m_visualizerFlag, m_multiThreadedHelper->m_visualizerEnable);
 
-			//postpone the release until an actual frame is rendered
-			if (flag == COV_ENABLE_SINGLE_STEP_RENDERING)
+			//postpone the release until an actual frame is rendered, unless it is a remote visualizer
+			if ((!m_multiThreadedHelper->m_childGuiHelper->isRemoteVisualizer()) && flag == COV_ENABLE_SINGLE_STEP_RENDERING)
 			{
 				m_multiThreadedHelper->getCriticalSection()->setSharedParam(1, eGUIHelperSetVisualizerFlagCheckRenderedFrame);
 			}
@@ -2263,6 +2383,13 @@ void PhysicsServerExample::updateGraphics()
 		case eGUIHelperChangeGraphicsInstanceFlags:
 		{
 			m_multiThreadedHelper->m_childGuiHelper->changeInstanceFlags(m_multiThreadedHelper->m_graphicsInstanceFlagsInstanceUid, m_multiThreadedHelper->m_graphicsInstanceFlags);
+			m_multiThreadedHelper->mainThreadRelease();
+			break;
+		}
+
+		case eGUIHelperSetRgbBackground:
+		{
+			m_multiThreadedHelper->m_childGuiHelper->setBackgroundColor(m_multiThreadedHelper->m_rgbBackground);
 			m_multiThreadedHelper->mainThreadRelease();
 			break;
 		}
@@ -2537,6 +2664,29 @@ void PhysicsServerExample::updateGraphics()
 			m_multiThreadedHelper->mainThreadRelease();
 			break;
 		}
+		case eGUIUserDebugAddPoints:
+		{
+			B3_PROFILE("eGUIUserDebugAddPoints");
+
+			if (m_multiThreadedHelper->m_tmpPoint.m_replaceItemUid >= 0)
+			{
+				for (int i = 0; i < m_multiThreadedHelper->m_userDebugPoints.size(); i++)
+				{
+					if (m_multiThreadedHelper->m_userDebugPoints[i].m_itemUniqueId == m_multiThreadedHelper->m_tmpPoint.m_replaceItemUid)
+					{
+						m_multiThreadedHelper->m_userDebugPoints[i] = m_multiThreadedHelper->m_tmpPoint;
+						m_multiThreadedHelper->m_resultDebugPointUid = m_multiThreadedHelper->m_tmpPoint.m_replaceItemUid;
+					}
+				}
+			}
+			else
+			{
+				m_multiThreadedHelper->m_userDebugPoints.push_back(m_multiThreadedHelper->m_tmpPoint);
+				m_multiThreadedHelper->m_resultDebugPointUid = m_multiThreadedHelper->m_userDebugPoints[m_multiThreadedHelper->m_userDebugPoints.size() - 1].m_itemUniqueId;
+			}
+			m_multiThreadedHelper->mainThreadRelease();
+			break;
+		}
 		case eGUIUserDebugRemoveItem:
 		{
 			B3_PROFILE("eGUIUserDebugRemoveItem");
@@ -2547,6 +2697,16 @@ void PhysicsServerExample::updateGraphics()
 				{
 					m_multiThreadedHelper->m_userDebugLines.swap(i, m_multiThreadedHelper->m_userDebugLines.size() - 1);
 					m_multiThreadedHelper->m_userDebugLines.pop_back();
+					break;
+				}
+			}
+
+			for (int i = 0; i < m_multiThreadedHelper->m_userDebugPoints.size(); i++)
+			{
+				if (m_multiThreadedHelper->m_userDebugPoints[i].m_itemUniqueId == m_multiThreadedHelper->m_removeDebugItemUid)
+				{
+					m_multiThreadedHelper->m_userDebugPoints.swap(i, m_multiThreadedHelper->m_userDebugPoints.size() - 1);
+					m_multiThreadedHelper->m_userDebugPoints.pop_back();
 					break;
 				}
 			}
@@ -2639,6 +2799,20 @@ void PhysicsServerExample::stepSimulation(float deltaTime)
 			}
 		}
 	}
+
+	for (int i = m_multiThreadedHelper->m_userDebugPoints.size() - 1; i >= 0; i--)
+	{
+		if (m_multiThreadedHelper->m_userDebugPoints[i].m_lifeTime)
+		{
+			m_multiThreadedHelper->m_userDebugPoints[i].m_lifeTime -= deltaTime;
+			if (m_multiThreadedHelper->m_userDebugPoints[i].m_lifeTime <= 0)
+			{
+				m_multiThreadedHelper->m_userDebugPoints.swap(i, m_multiThreadedHelper->m_userDebugPoints.size() - 1);
+				m_multiThreadedHelper->m_userDebugPoints.pop_back();
+			}
+		}
+	}
+
 	updateGraphics();
 
 
@@ -2867,6 +3041,28 @@ void PhysicsServerExample::drawUserDebugLines()
 				m_multiThreadedHelper->m_userDebugText[i].m_textPositionXYZ[2],
 				m_multiThreadedHelper->m_userDebugText[i].textSize);
 				*/
+		}
+
+		for (int i = 0; i < m_multiThreadedHelper->m_userDebugPoints.size(); i++) {
+			const double* positions = m_multiThreadedHelper->m_userDebugPoints[i].m_debugPointPositions;
+			const double* colors = m_multiThreadedHelper->m_userDebugPoints[i].m_debugPointColors;
+			const int pointNum = m_multiThreadedHelper->m_userDebugPoints[i].m_debugPointNum;
+			const double sz = m_multiThreadedHelper->m_userDebugPoints[i].m_pointSize;
+
+			float* pos = (float*)malloc(pointNum * 3 * sizeof(float));
+			float* clr = (float*)malloc(pointNum * 4 * sizeof(float));
+			for (int i = 0; i < pointNum; i++) {
+				pos[i * 3 + 0] = (float)positions[i * 3 + 0];
+				pos[i * 3 + 1] = (float)positions[i * 3 + 1];
+				pos[i * 3 + 2] = (float)positions[i * 3 + 2];
+				clr[i * 4 + 0] = (float)colors[i * 3 + 0];
+				clr[i * 4 + 1] = (float)colors[i * 3 + 1];
+				clr[i * 4 + 2] = (float)colors[i * 3 + 2];
+				clr[i * 4 + 3] = 1.f;
+			}
+			m_guiHelper->getAppInterface()->m_renderer->drawPoints(pos, clr, pointNum, 3 * sizeof(float), sz);
+			free(pos);
+			free(clr);
 		}
 	}
 }

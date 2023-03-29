@@ -61,11 +61,12 @@ IF (BUILD_SHARED_LIBS)
                                 BulletInverseDynamics LinearMath OpenGLWindow gwen BussIK
                                 ${COCOA} ${OPENGL_gl_LIBRARY} ${OPENGL_glu_LIBRARY}
                  )
-  			ELSE(APPLE)
+				ELSE(APPLE)
+                 FIND_PACKAGE(Threads)
                  TARGET_LINK_LIBRARIES(
                                 BulletExampleBrowserLib Bullet3Common BulletSoftBody BulletDynamics BulletCollision BulletInverseDynamicsUtils
                                 BulletInverseDynamics LinearMath OpenGLWindow gwen BussIK
-                                pthread ${DL}
+                                ${CMAKE_THREAD_LIBS_INIT} ${DL}
                         )
         ENDIF(APPLE)
 	ENDIF(WIN32)
@@ -116,7 +117,8 @@ ELSE(WIN32)
 		ADD_DEFINITIONS("-DGLEW_STATIC")
 		ADD_DEFINITIONS("-DGLEW_DYNAMIC_LOAD_ALL_GLX_FUNCTIONS=1")
 		INCLUDE_DIRECTORIES( ${BULLET_PHYSICS_SOURCE_DIR}/examples/ThirdPartyLibs/glad )
-		LINK_LIBRARIES( pthread ${DL})
+		FIND_PACKAGE(Threads)
+		LINK_LIBRARIES( ${CMAKE_THREAD_LIBS_INIT} ${DL} )
 	ENDIF(APPLE)
 ENDIF(WIN32)
 
@@ -350,7 +352,8 @@ SET(BulletExampleBrowser_SRCS
   ../MultiBody/TestJointTorqueSetup.h
   ../MultiBody/InvertedPendulumPDControl.cpp
   ../MultiBody/InvertedPendulumPDControl.h
- ../MultiBody/MultiBodyConstraintFeedback.cpp
+  ../MultiBody/MultiBodyConstraintFeedback.cpp
+  ../MultiBody/KinematicMultiBodyExample.cpp
   ../SoftDemo/SoftDemo.cpp
   ../SoftDemo/SoftDemo.h
   ../DeformableDemo/DeformableContact.cpp
@@ -376,6 +379,8 @@ SET(BulletExampleBrowser_SRCS
   ../DeformableDemo/Collide.cpp
   ../DeformableDemo/Collide.h
   ../DeformableDemo/LargeDeformation.cpp
+  ../DeformableDemo/LoadDeformed.h
+  ../DeformableDemo/LoadDeformed.cpp
   ../DeformableDemo/LargeDeformation.h
   ../DeformableDemo/DeformableClothAnchor.cpp
   ../DeformableDemo/DeformableClothAnchor.h
@@ -384,6 +389,25 @@ SET(BulletExampleBrowser_SRCS
   ../MultiBody/MultiDofDemo.cpp
   ../MultiBody/MultiDofDemo.h
   ../RigidBody/RigidBodySoftContact.cpp
+  ../RigidBody/KinematicRigidBodyExample.cpp
+	../ReducedDeformableDemo/ConservationTest.cpp
+	../ReducedDeformableDemo/ConservationTest.h
+	../ReducedDeformableDemo/Springboard.cpp
+	../ReducedDeformableDemo/Springboard.h
+	../ReducedDeformableDemo/ModeVisualizer.cpp
+	../ReducedDeformableDemo/ModeVisualizer.h
+	../ReducedDeformableDemo/FreeFall.cpp
+	../ReducedDeformableDemo/FreeFall.h
+	../ReducedDeformableDemo/FrictionSlope.cpp
+	../ReducedDeformableDemo/FrictionSlope.h
+	../ReducedDeformableDemo/ReducedCollide.cpp
+	../ReducedDeformableDemo/ReducedCollide.h
+	../ReducedDeformableDemo/ReducedGrasp.cpp
+	../ReducedDeformableDemo/ReducedGrasp.h
+	../ReducedDeformableDemo/ReducedBenchmark.cpp
+	../ReducedDeformableDemo/ReducedBenchmark.h
+	../ReducedDeformableDemo/ReducedMotorGrasp.cpp
+	../ReducedDeformableDemo/ReducedMotorGrasp.h
   ../Constraints/TestHingeTorque.cpp
   ../Constraints/TestHingeTorque.h
   ../Constraints/ConstraintDemo.cpp

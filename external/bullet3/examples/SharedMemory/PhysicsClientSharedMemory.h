@@ -80,6 +80,8 @@ public:
 
 	virtual void getCachedMeshData(struct b3MeshData* meshData);
 
+	virtual void getCachedTetraMeshData(struct b3TetraMeshData* meshData);
+
 	virtual void getCachedVREvents(struct b3VREventsData* vrEventsData);
 
 	virtual void getCachedKeyboardEvents(struct b3KeyboardEventsData* keyboardEventsData);
@@ -89,6 +91,8 @@ public:
 	virtual void getCachedRaycastHits(struct b3RaycastInformation* raycastHits);
 
 	virtual void getCachedMassMatrix(int dofCountCheck, double* massMatrix);
+
+	virtual bool getCachedReturnData(b3UserDataValue* returnData);
 
 	virtual void setTimeOut(double timeOutInSeconds);
 	virtual double getTimeOut() const;

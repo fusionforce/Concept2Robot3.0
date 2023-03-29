@@ -30,6 +30,7 @@ public:
 	virtual void setShadowMapIntensity(double shadowMapIntensity) {}
 	virtual void setShadowMapWorldSize(float worldSize) {}
 	virtual void resize(int width, int height);
+	virtual void setBackgroundColor(const double rgbBackground[3]) {}
 
 	virtual void removeAllInstances();
 	virtual void removeGraphicsInstance(int instanceUid);
@@ -80,6 +81,8 @@ public:
 	virtual void drawPoint(const float* position, const float color[4], float pointDrawSize);
 
 	virtual void drawPoint(const double* position, const double color[4], double pointDrawSize);
+
+	virtual void drawPoints(const float* positions, const float* colors, int numPoints, int pointStrideInBytes, float pointDrawSize);
 
 	virtual void updateShape(int shapeIndex, const float* vertices, int numVertices);
 

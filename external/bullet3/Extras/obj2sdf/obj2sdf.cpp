@@ -4,6 +4,20 @@
 /// this will make it easier to load complex obj files into pybullet
 /// see for example export in data/kitchens/fathirmutfak.sdf
 
+///Bullet Continuous Collision Detection and Physics Library
+///Erwin Coumans (C) 2018
+///http://bulletphysics.org
+///
+///This software is provided 'as-is', without any express or implied warranty.
+///In no event will the authors be held liable for any damages arising from the use of this software.
+///Permission is granted to anyone to use this software for any purpose,
+///including commercial applications, and to alter it and redistribute it freely,
+///subject to the following restrictions:
+///
+///1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+///2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+///3. This notice may not be removed or altered from any source distribution.
+	
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
@@ -16,13 +30,13 @@
 #include "Bullet3Common/b3HashMap.h"
 #include "../Utils/b3BulletDefaultFileIO.h"
 
-using tinyobj::index_t;
+using bt_tinyobj::index_t;
 
 struct ShapeContainer
 {
 	std::string m_matName;
 	std::string m_shapeName;
-	tinyobj::material_t material;
+	bt_tinyobj::material_t material;
 	std::vector<float> positions;
 	std::vector<float> normals;
 	std::vector<float> texcoords;
@@ -77,11 +91,11 @@ int main(int argc, char* argv[])
 	char materialPrefixPath[MAX_PATH_LEN];
 	b3FileUtils::extractPath(fileNameWithPath, materialPrefixPath, MAX_PATH_LEN);
 
-	std::vector<tinyobj::shape_t> shapes;
-	tinyobj::attrib_t attribute;
+	std::vector<bt_tinyobj::shape_t> shapes;
+	bt_tinyobj::attrib_t attribute;
 
 	b3BulletDefaultFileIO fileIO;
-	std::string err = tinyobj::LoadObj(attribute, shapes, fileNameWithPath, materialPrefixPath,&fileIO);
+	std::string err = bt_tinyobj::LoadObj(attribute, shapes, fileNameWithPath, materialPrefixPath, &fileIO);
 
 	char sdfFileName[MAX_PATH_LEN];
 	sprintf(sdfFileName, "%s%s.sdf", materialPrefixPath, "newsdf");
@@ -96,8 +110,8 @@ int main(int argc, char* argv[])
 
 	for (int s = 0; s < (int)shapes.size(); s++)
 	{
-		tinyobj::shape_t& shape = shapes[s];
-		tinyobj::material_t mat = shape.material;
+		bt_tinyobj::shape_t& shape = shapes[s];
+		bt_tinyobj::material_t mat = shape.material;
 
 		b3HashString key = mat.name.length() ? mat.name.c_str() : "";
 		if (!gMaterialNames.find(key))
@@ -198,7 +212,7 @@ int main(int argc, char* argv[])
 
 			int faceCount = shapeCon->indices.size();
 			int vertexCount = shapeCon->positions.size();
-			tinyobj::material_t mat = shapeCon->material;
+			bt_tinyobj::material_t mat = shapeCon->material;
 			if (shapeCon->m_matName.length())
 			{
 				const char* objName = shapeCon->m_matName.c_str();
@@ -257,7 +271,7 @@ int main(int argc, char* argv[])
 			fprintf(sdfFile,
 					"\t\t<model name='%s'>\n"
 					"\t\t\t<static>1</static>\n"
-					"\t\t\t<pose frame=''>0 0 0 0 0 0</pose>\n"
+					"\t\t\t<pose >0 0 0 0 0 0</pose>\n"
 					"\t\t\t<link name='link_d%d'>\n"
 					"\t\t\t<inertial>\n"
 					"\t\t\t<mass>0</mass>\n"
@@ -303,7 +317,7 @@ int main(int argc, char* argv[])
 	{
 		for (int s = 0; s < (int)shapes.size(); s++)
 		{
-			tinyobj::shape_t& shape = shapes[s];
+			bt_tinyobj::shape_t& shape = shapes[s];
 
 			if (shape.name.length())
 			{
@@ -337,7 +351,7 @@ int main(int argc, char* argv[])
 
 			int faceCount = shape.mesh.indices.size();
 			int vertexCount = attribute.vertices.size();
-			tinyobj::material_t mat = shape.material;
+			bt_tinyobj::material_t mat = shape.material;
 			if (shape.name.length())
 			{
 				const char* objName = shape.name.c_str();
@@ -397,7 +411,7 @@ int main(int argc, char* argv[])
 			fprintf(sdfFile,
 					"\t\t<model name='%s'>\n"
 					"\t\t\t<static>1</static>\n"
-					"\t\t\t<pose frame=''>0 0 0 0 0 0</pose>\n"
+					"\t\t\t<pose>0 0 0 0 0 0</pose>\n"
 					"\t\t\t<link name='link_d%d'>\n"
 					"\t\t\t<inertial>\n"
 					"\t\t\t<mass>0</mass>\n"

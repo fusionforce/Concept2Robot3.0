@@ -132,12 +132,16 @@ struct b3CustomCommand
 	b3PluginArguments m_arguments;
 	char m_pluginPath[MAX_FILENAME_LENGTH];
 	char m_postFix[MAX_FILENAME_LENGTH];
+	int m_startingReturnBytes;
 };
 
 struct b3CustomCommandResultArgs
 {
 	int m_pluginUniqueId;
 	int m_executeCommandResult;
+	int m_returnDataType;
+	int m_returnDataSizeInBytes;
+	int m_returnDataStart;
 };
 
 struct BulletDataStreamArgs
@@ -169,6 +173,8 @@ enum EnumChangeDynamicsInfoFlags
 	CHANGE_DYNAMICS_INFO_SET_COLLISION_MARGIN = 1 << 17,
 	CHANGE_DYNAMICS_INFO_SET_JOINT_LIMITS = 1 << 18,
 	CHANGE_DYNAMICS_INFO_SET_JOINT_LIMIT_MAX_FORCE = 1 << 19,
+	CHANGE_DYNAMICS_INFO_SET_DYNAMIC_TYPE = 1 << 20,
+	CHANGE_DYNAMICS_INFO_SET_SLEEP_THRESHOLD = 1 << 21,
 };
 
 struct ChangeDynamicsInfoArgs
@@ -198,6 +204,11 @@ struct ChangeDynamicsInfoArgs
 	double m_jointLowerLimit;
 	double m_jointUpperLimit;
 	double m_jointLimitForce;
+	
+	int m_dynamicType;
+
+	double m_sleepThreshold;
+
 };
 
 struct GetDynamicsInfoArgs
@@ -458,6 +469,8 @@ struct SendDesiredStateArgs
 	//or the maximum applied force/torque for the PD/motor/constraint to reach the desired velocity in CONTROL_MODE_VELOCITY and CONTROL_MODE_POSITION_VELOCITY_PD mode
 	//indexed by degree of freedom, 6 dof base, and then dofs for each link
 	double m_desiredStateForceTorque[MAX_DEGREE_OF_FREEDOM];
+
+	double m_damping[MAX_DEGREE_OF_FREEDOM];
 };
 
 enum EnumSimDesiredStateUpdateFlags
@@ -468,6 +481,7 @@ enum EnumSimDesiredStateUpdateFlags
 	SIM_DESIRED_STATE_HAS_KP = 8,
 	SIM_DESIRED_STATE_HAS_MAX_FORCE = 16,
 	SIM_DESIRED_STATE_HAS_RHS_CLAMP = 32,
+	SIM_DESIRED_STATE_HAS_DAMPING = 64,
 };
 
 enum EnumSimParamUpdateFlags
@@ -833,6 +847,7 @@ enum EnumUserDebugDrawFlags
 	USER_DEBUG_HAS_PARENT_OBJECT = 1024,
 	USER_DEBUG_HAS_REPLACE_ITEM_UNIQUE_ID = 2048,
 	USER_DEBUG_REMOVE_ALL_PARAMETERS = 4096,
+	USER_DEBUG_HAS_POINTS = 8192,
 };
 
 struct UserDebugDrawArgs
@@ -862,6 +877,9 @@ struct UserDebugDrawArgs
 	double m_objectDebugColorRGB[3];
 	int m_objectUniqueId;
 	int m_linkIndex;
+
+	int m_debugPointNum;
+	double m_pointSize;
 };
 
 struct UserDebugDrawResultArgs
@@ -948,6 +966,7 @@ enum InternalOpenGLVisualizerUpdateFlags
 	COV_SET_SHADOWMAP_WORLD_SIZE = 16,
 	COV_SET_REMOTE_SYNC_TRANSFORM_INTERVAL = 32,
 	COV_SET_SHADOWMAP_INTENSITY = 64,
+	COV_SET_RGB_BACKGROUND = 128,
 };
 
 struct ConfigureOpenGLVisualizerRequest
@@ -963,6 +982,7 @@ struct ConfigureOpenGLVisualizerRequest
 	int m_setFlag;
 	int m_setEnabled;
 	double m_shadowMapIntensity;
+	double m_rgbBackground[3];
 };
 
 enum
@@ -1124,6 +1144,20 @@ struct b3RequestMeshDataArgs
 	int m_flags;
 };
 
+struct b3RequestTetraMeshDataArgs
+{
+	int m_bodyUniqueId;
+	int m_startingVertex;
+	int m_flags;
+};
+
+struct b3ResetMeshDataArgs
+{
+	int m_bodyUniqueId;
+	int m_numVertices;
+	int m_flags;
+};
+
 struct b3SendMeshDataArgs
 {
 	int m_numVerticesCopied;
@@ -1192,6 +1226,9 @@ struct SharedMemoryCommand
 		struct UserDataRequestArgs m_removeUserDataRequestArgs;
 		struct b3CollisionFilterArgs m_collisionFilterArgs;
 		struct b3RequestMeshDataArgs m_requestMeshDataArgs;
+		struct b3RequestTetraMeshDataArgs m_requestTetraMeshDataArgs;
+		struct b3ResetMeshDataArgs m_resetMeshDataArgs;
+		struct b3RequestTetraMeshDataArgs m_resetTetraMeshDataArgs;
 	};
 };
 

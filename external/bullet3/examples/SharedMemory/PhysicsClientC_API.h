@@ -66,7 +66,8 @@ extern "C"
 	B3_SHARED_API void b3CustomCommandLoadPluginSetPostFix(b3SharedMemoryCommandHandle commandHandle, const char* postFix);
 	B3_SHARED_API int b3GetStatusPluginUniqueId(b3SharedMemoryStatusHandle statusHandle);
 	B3_SHARED_API int b3GetStatusPluginCommandResult(b3SharedMemoryStatusHandle statusHandle);
-
+	B3_SHARED_API int b3GetStatusPluginCommandReturnData(b3PhysicsClientHandle physClient, struct b3UserDataValue* valueOut);
+	
 	B3_SHARED_API void b3CustomCommandUnloadPlugin(b3SharedMemoryCommandHandle commandHandle, int pluginUniqueId);
 	B3_SHARED_API void b3CustomCommandExecutePluginCommand(b3SharedMemoryCommandHandle commandHandle, int pluginUniqueId, const char* textArguments);
 	B3_SHARED_API void b3CustomCommandExecuteAddIntArgument(b3SharedMemoryCommandHandle commandHandle, int intVal);
@@ -104,6 +105,9 @@ extern "C"
 
 	///If you re-connected to an existing server, or server changed otherwise, sync the body info and user constraints etc.
 	B3_SHARED_API b3SharedMemoryCommandHandle b3InitSyncBodyInfoCommand(b3PhysicsClientHandle physClient);
+
+	// Sync the body info of a single body. Useful when a new body has been added by a different client (e,g, when detecting through a body added notification).
+	B3_SHARED_API b3SharedMemoryCommandHandle b3InitRequestBodyInfoCommand(b3PhysicsClientHandle physClient, int bodyUniqueId);
 
 	B3_SHARED_API b3SharedMemoryCommandHandle b3InitRemoveBodyCommand(b3PhysicsClientHandle physClient, int bodyUniqueId);
 
@@ -154,8 +158,9 @@ extern "C"
 	B3_SHARED_API int b3ChangeDynamicsInfoSetAnisotropicFriction(b3SharedMemoryCommandHandle commandHandle, int bodyUniqueId, int linkIndex, const double anisotropicFriction[]);
 	B3_SHARED_API int b3ChangeDynamicsInfoSetJointLimit(b3SharedMemoryCommandHandle commandHandle, int bodyUniqueId, int linkIndex, double jointLowerLimit, double jointUpperLimit);
 	B3_SHARED_API int b3ChangeDynamicsInfoSetJointLimitForce(b3SharedMemoryCommandHandle commandHandle, int bodyUniqueId, int linkIndex, double jointLimitForce);
+	B3_SHARED_API int b3ChangeDynamicsInfoSetDynamicType(b3SharedMemoryCommandHandle commandHandle, int bodyUniqueId, int linkIndex, int dynamicType);
 
-	
+	B3_SHARED_API int b3ChangeDynamicsInfoSetSleepThreshold(b3SharedMemoryCommandHandle commandHandle, int bodyUniqueId, double sleepThreshold);
 	
 	B3_SHARED_API int b3ChangeDynamicsInfoSetLateralFriction(b3SharedMemoryCommandHandle commandHandle, int bodyUniqueId, int linkIndex, double lateralFriction);
 	B3_SHARED_API int b3ChangeDynamicsInfoSetSpinningFriction(b3SharedMemoryCommandHandle commandHandle, int bodyUniqueId, int linkIndex, double friction);
@@ -216,7 +221,9 @@ extern "C"
 	B3_SHARED_API void b3ConfigureOpenGLVisualizerSetLightPosition(b3SharedMemoryCommandHandle commandHandle, const float lightPosition[3]);
 	B3_SHARED_API void b3ConfigureOpenGLVisualizerSetShadowMapResolution(b3SharedMemoryCommandHandle commandHandle, int shadowMapResolution);
 	B3_SHARED_API void b3ConfigureOpenGLVisualizerSetShadowMapIntensity(b3SharedMemoryCommandHandle commandHandle, double shadowMapIntensity);
+	B3_SHARED_API void b3ConfigureOpenGLVisualizerSetLightRgbBackground(b3SharedMemoryCommandHandle commandHandle, const float rgbBackground[3]);
 	
+
 	B3_SHARED_API void b3ConfigureOpenGLVisualizerSetShadowMapWorldSize(b3SharedMemoryCommandHandle commandHandle, int shadowMapWorldSize);
 	B3_SHARED_API void b3ConfigureOpenGLVisualizerSetRemoteSyncTransformInterval(b3SharedMemoryCommandHandle commandHandle, double remoteSyncTransformInterval);
 	
@@ -227,6 +234,7 @@ extern "C"
 
 	/// Add/remove user-specific debug lines and debug text messages
 	B3_SHARED_API b3SharedMemoryCommandHandle b3InitUserDebugDrawAddLine3D(b3PhysicsClientHandle physClient, const double fromXYZ[/*3*/], const double toXYZ[/*3*/], const double colorRGB[/*3*/], double lineWidth, double lifeTime);
+	B3_SHARED_API b3SharedMemoryCommandHandle b3InitUserDebugDrawAddPoints3D(b3PhysicsClientHandle physClient, const double positionsXYZ[/*3n*/], const double colorsRGB[/*3*/], double pointSize, double lifeTime, int pointNum);
 
 	B3_SHARED_API b3SharedMemoryCommandHandle b3InitUserDebugDrawAddText3D(b3PhysicsClientHandle physClient, const char* txt, const double positionXYZ[/*3*/], const double colorRGB[/*3*/], double textSize, double lifeTime);
 	B3_SHARED_API void b3UserDebugTextSetOptionFlags(b3SharedMemoryCommandHandle commandHandle, int optionFlags);
@@ -381,6 +389,8 @@ extern "C"
 	B3_SHARED_API b3SharedMemoryCommandHandle b3InitStepSimulationCommand(b3PhysicsClientHandle physClient);
 	B3_SHARED_API b3SharedMemoryCommandHandle b3InitStepSimulationCommand2(b3SharedMemoryCommandHandle commandHandle);
 
+	B3_SHARED_API b3SharedMemoryCommandHandle b3InitPerformCollisionDetectionCommand(b3PhysicsClientHandle physClient);
+
 	B3_SHARED_API int b3GetStatusForwardDynamicsAnalyticsData(b3SharedMemoryStatusHandle statusHandle, struct b3ForwardDynamicsAnalyticsArgs* analyticsData);
 
 
@@ -412,6 +422,8 @@ extern "C"
 	B3_SHARED_API b3SharedMemoryCommandHandle b3LoadMJCFCommandInit(b3PhysicsClientHandle physClient, const char* fileName);
 	B3_SHARED_API b3SharedMemoryCommandHandle b3LoadMJCFCommandInit2(b3SharedMemoryCommandHandle commandHandle, const char* fileName);
 	B3_SHARED_API void b3LoadMJCFCommandSetFlags(b3SharedMemoryCommandHandle commandHandle, int flags);
+	B3_SHARED_API void b3LoadMJCFCommandSetUseMultiBody(b3SharedMemoryCommandHandle commandHandle, int useMultiBody);
+	
 
 	///compute the forces to achieve an acceleration, given a state q and qdot using inverse dynamics
 	B3_SHARED_API b3SharedMemoryCommandHandle b3CalculateInverseDynamicsCommandInit(b3PhysicsClientHandle physClient, int bodyUniqueId,
@@ -481,7 +493,9 @@ extern "C"
 	B3_SHARED_API int b3JointControlSetDesiredPositionMultiDof(b3SharedMemoryCommandHandle commandHandle, int qIndex, const double* position, int dofCount);
 
 	B3_SHARED_API int b3JointControlSetKp(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double value);
+	B3_SHARED_API int b3JointControlSetKpMultiDof(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double* kps, int dofCount);
 	B3_SHARED_API int b3JointControlSetKd(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double value);
+	B3_SHARED_API int b3JointControlSetKdMultiDof(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double* kds, int dofCount);
 	B3_SHARED_API int b3JointControlSetMaximumVelocity(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double maximumVelocity);
 
 	///Only use when controlMode is CONTROL_MODE_VELOCITY
@@ -491,6 +505,8 @@ extern "C"
 
 	B3_SHARED_API int b3JointControlSetMaximumForce(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double value);
 	B3_SHARED_API int b3JointControlSetDesiredForceTorqueMultiDof(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double* forces, int dofCount);
+	B3_SHARED_API int b3JointControlSetDamping(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double value);
+	B3_SHARED_API int b3JointControlSetDampingMultiDof(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double* damping, int dofCount);
 	
 	///Only use if when controlMode is CONTROL_MODE_TORQUE,
 	B3_SHARED_API int b3JointControlSetDesiredForceTorque(b3SharedMemoryCommandHandle commandHandle, int dofIndex, double value);
@@ -517,11 +533,17 @@ extern "C"
 	B3_SHARED_API b3SharedMemoryCommandHandle b3InitRemoveCollisionShapeCommand(b3PhysicsClientHandle physClient, int collisionShapeId);
 
 	B3_SHARED_API b3SharedMemoryCommandHandle b3GetMeshDataCommandInit(b3PhysicsClientHandle physClient, int bodyUniqueId, int linkIndex);
+	B3_SHARED_API b3SharedMemoryCommandHandle b3GetTetraMeshDataCommandInit(b3PhysicsClientHandle physClient, int bodyUniqueId);
+	B3_SHARED_API void b3GetMeshDataSimulationMesh(b3SharedMemoryCommandHandle commandHandle);
+	B3_SHARED_API void b3MeshDataSimulationMeshVelocity(b3SharedMemoryCommandHandle commandHandle);
 	B3_SHARED_API void b3GetMeshDataSetCollisionShapeIndex(b3SharedMemoryCommandHandle commandHandle, int shapeIndex);
 	B3_SHARED_API void b3GetMeshDataSetFlags(b3SharedMemoryCommandHandle commandHandle, int flags);
+	B3_SHARED_API void b3GetTetraMeshDataSetFlags(b3SharedMemoryCommandHandle commandHandle, int flags);
 	
 	B3_SHARED_API void b3GetMeshData(b3PhysicsClientHandle physClient, struct b3MeshData* meshData);
+	B3_SHARED_API void b3GetTetraMeshData(b3PhysicsClientHandle physClient, struct b3TetraMeshData* meshData);
 
+	B3_SHARED_API b3SharedMemoryCommandHandle b3ResetMeshDataCommandInit(b3PhysicsClientHandle physClient, int bodyUniqueId, int num_vertices, const double* vertices);
 
 	B3_SHARED_API b3SharedMemoryCommandHandle b3CreateVisualShapeCommandInit(b3PhysicsClientHandle physClient);
 	B3_SHARED_API int b3CreateVisualShapeAddSphere(b3SharedMemoryCommandHandle commandHandle, double radius);

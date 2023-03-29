@@ -183,6 +183,11 @@ void PhysicsLoopBack::getCachedMeshData(struct b3MeshData* meshData)
 	return m_data->m_physicsClient->getCachedMeshData(meshData);
 }
 
+void PhysicsLoopBack::getCachedTetraMeshData(struct b3TetraMeshData* meshData)
+{
+	return m_data->m_physicsClient->getCachedTetraMeshData(meshData);
+}
+
 void PhysicsLoopBack::getCachedContactPointInformation(struct b3ContactInformation* contactPointData)
 {
 	return m_data->m_physicsClient->getCachedContactPointInformation(contactPointData);
@@ -226,6 +231,10 @@ void PhysicsLoopBack::getCachedRaycastHits(struct b3RaycastInformation* raycastH
 void PhysicsLoopBack::getCachedMassMatrix(int dofCountCheck, double* massMatrix)
 {
 	m_data->m_physicsClient->getCachedMassMatrix(dofCountCheck, massMatrix);
+}
+bool PhysicsLoopBack::getCachedReturnData(struct b3UserDataValue* returnData)
+{
+	return m_data->m_physicsClient->getCachedReturnData(returnData);
 }
 
 void PhysicsLoopBack::setTimeOut(double timeOutInSeconds)

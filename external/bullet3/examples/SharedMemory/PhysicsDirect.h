@@ -22,11 +22,15 @@ protected:
 
 	bool processVisualShapeData(const struct SharedMemoryCommand& orgCommand);
 
-  bool processMeshData(const struct SharedMemoryCommand& orgCommand);
+	bool processMeshData(const struct SharedMemoryCommand& orgCommand);
 
 	void processBodyJointInfo(int bodyUniqueId, const struct SharedMemoryStatus& serverCmd);
 
 	void processAddUserData(const struct SharedMemoryStatus& serverCmd);
+
+	bool processRequestBodyInfo(const struct SharedMemoryCommand& command, SharedMemoryStatus& status);
+
+	bool processCustomCommand(const struct SharedMemoryCommand& orgCommand);
 
 	void postProcessStatus(const struct SharedMemoryStatus& serverCmd);
 
@@ -102,6 +106,8 @@ public:
 
 	virtual void getCachedMeshData(struct b3MeshData* meshData);
 
+	virtual void getCachedTetraMeshData(struct b3TetraMeshData* meshData);
+
 	virtual void getCachedVREvents(struct b3VREventsData* vrEventsData);
 
 	virtual void getCachedKeyboardEvents(struct b3KeyboardEventsData* keyboardEventsData);
@@ -111,6 +117,8 @@ public:
 	virtual void getCachedRaycastHits(struct b3RaycastInformation* raycastHits);
 
 	virtual void getCachedMassMatrix(int dofCountCheck, double* massMatrix);
+
+	virtual bool getCachedReturnData(b3UserDataValue* returnData);
 
 	//the following APIs are for internal use for visualization:
 	virtual bool connect(struct GUIHelperInterface* guiHelper);

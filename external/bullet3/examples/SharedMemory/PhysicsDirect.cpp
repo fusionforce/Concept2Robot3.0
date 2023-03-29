@@ -67,6 +67,7 @@ struct PhysicsDirectInternalData
 	btAlignedObjectArray<b3CollisionShapeData> m_cachedCollisionShapes;
 
 	b3MeshData m_cachedMeshData;
+	b3TetraMeshData m_cachedTetraMeshData;
 	btAlignedObjectArray<b3MeshVertex> m_cachedVertexPositions;
 
 	btAlignedObjectArray<b3VRControllerEvent> m_cachedVREvents;
@@ -78,6 +79,10 @@ struct PhysicsDirectInternalData
 
 	btHashMap<btHashInt, SharedMemoryUserData> m_userDataMap;
 	btHashMap<SharedMemoryUserDataHashKey, int> m_userDataHandleLookup;
+
+	btAlignedObjectArray<char> m_cachedReturnData;
+	b3UserDataValue m_cachedReturnDataValue;
+
 
 	PhysicsCommandProcessorInterface* m_commandProcessor;
 	bool m_ownsCommandProcessor;
@@ -95,6 +100,7 @@ struct PhysicsDirectInternalData
 		  m_timeOutInSeconds(1e30)
 	{
 		memset(&m_cachedMeshData.m_numVertices, 0, sizeof(b3MeshData));
+		memset(&m_cachedTetraMeshData.m_numVertices, 0, sizeof(b3TetraMeshData));
 		memset(&m_command, 0, sizeof(m_command));
 		memset(&m_serverStatus, 0, sizeof(m_serverStatus));
 		memset(m_bulletStreamDataServerToClient, 0, sizeof(m_bulletStreamDataServerToClient));
@@ -1004,21 +1010,7 @@ void PhysicsDirect::postProcessStatus(const struct SharedMemoryStatus& serverCmd
 
 				m_data->m_tmpInfoRequestCommand.m_type = CMD_REQUEST_BODY_INFO;
 				m_data->m_tmpInfoRequestCommand.m_sdfRequestInfoArgs.m_bodyUniqueId = bodyUniqueId;
-
-				bool hasStatus = m_data->m_commandProcessor->processCommand(m_data->m_tmpInfoRequestCommand, m_data->m_tmpInfoStatus, &m_data->m_bulletStreamDataServerToClient[0], SHARED_MEMORY_MAX_STREAM_CHUNK_SIZE);
-
-				b3Clock clock;
-				double startTime = clock.getTimeInSeconds();
-				double timeOutInSeconds = m_data->m_timeOutInSeconds;
-				while ((!hasStatus) && (clock.getTimeInSeconds() - startTime < timeOutInSeconds))
-				{
-					hasStatus = m_data->m_commandProcessor->receiveStatus(m_data->m_tmpInfoStatus, &m_data->m_bulletStreamDataServerToClient[0], SHARED_MEMORY_MAX_STREAM_CHUNK_SIZE);
-				}
-
-				if (hasStatus)
-				{
-					processBodyJointInfo(bodyUniqueId, m_data->m_tmpInfoStatus);
-				}
+				processRequestBodyInfo(m_data->m_tmpInfoRequestCommand, m_data->m_tmpInfoStatus);
 			}
 			break;
 		}
@@ -1113,10 +1105,7 @@ void PhysicsDirect::postProcessStatus(const struct SharedMemoryStatus& serverCmd
 			b3Warning("Request mesh data failed");
 			break;
 		}
-		case CMD_CUSTOM_COMMAND_COMPLETED:
-		{
-			break;
-		}
+		
 		case CMD_CUSTOM_COMMAND_FAILED:
 		{
 			b3Warning("custom plugin command failed");
@@ -1162,6 +1151,10 @@ void PhysicsDirect::postProcessStatus(const struct SharedMemoryStatus& serverCmd
 			break;
 		}
 		case CMD_STEP_FORWARD_SIMULATION_COMPLETED:
+		{
+			break;
+		}
+		case CMD_PERFORM_COLLISION_DETECTION_COMPLETED:
 		{
 			break;
 		}
@@ -1301,6 +1294,14 @@ void PhysicsDirect::postProcessStatus(const struct SharedMemoryStatus& serverCmd
 			}
 			break;
 		}
+		case CMD_RESET_MESH_DATA_COMPLETED:
+		{
+			break;
+		}
+		case CMD_RESET_MESH_DATA_FAILED:
+		{
+			break;
+		}
 		case CMD_REMOVE_STATE_FAILED:
 		{
 			break;
@@ -1309,14 +1310,111 @@ void PhysicsDirect::postProcessStatus(const struct SharedMemoryStatus& serverCmd
 		{
 			break;
 		}
+		case CMD_CUSTOM_COMMAND_COMPLETED:
+		{
+			break;
+		}
 		default:
 		{
 			//b3Warning("Unknown server status type");
 		}
+
 	};
 }
+
+
+bool PhysicsDirect::processCustomCommand(const struct SharedMemoryCommand& orgCommand)
+{
+	SharedMemoryCommand command = orgCommand;
+
+	const SharedMemoryStatus& serverCmd = m_data->m_serverStatus;
+
+	int remaining = 0;
+	do
+	{
+		bool hasStatus = m_data->m_commandProcessor->processCommand(command, m_data->m_serverStatus, &m_data->m_bulletStreamDataServerToClient[0], SHARED_MEMORY_MAX_STREAM_CHUNK_SIZE);
+
+		b3Clock clock;
+		double startTime = clock.getTimeInSeconds();
+		double timeOutInSeconds = m_data->m_timeOutInSeconds;
+
+		while ((!hasStatus) && (clock.getTimeInSeconds() - startTime < timeOutInSeconds))
+		{
+			const SharedMemoryStatus* stat = processServerStatus();
+			if (stat)
+			{
+				hasStatus = true;
+			}
+		}
+
+		m_data->m_hasStatus = hasStatus;
+
+		if (hasStatus)
+		{
+			
+			if (m_data->m_verboseOutput)
+			{
+				b3Printf("Success receiving %d return data\n",
+					serverCmd.m_numDataStreamBytes);
+			}
+
+			
+			btAssert(m_data->m_serverStatus.m_type == CMD_CUSTOM_COMMAND_COMPLETED);
+
+			if (m_data->m_serverStatus.m_type == CMD_CUSTOM_COMMAND_COMPLETED)
+			{
+				m_data->m_cachedReturnData.resize(serverCmd.m_customCommandResultArgs.m_returnDataSizeInBytes);
+				m_data->m_cachedReturnDataValue.m_length = serverCmd.m_customCommandResultArgs.m_returnDataSizeInBytes;
+
+				if (serverCmd.m_customCommandResultArgs.m_returnDataSizeInBytes)
+				{
+					m_data->m_cachedReturnDataValue.m_type = serverCmd.m_customCommandResultArgs.m_returnDataType;
+					m_data->m_cachedReturnDataValue.m_data1 = &m_data->m_cachedReturnData[0];
+					for (int i = 0; i < serverCmd.m_numDataStreamBytes; i++)
+					{
+						m_data->m_cachedReturnData[i+ serverCmd.m_customCommandResultArgs.m_returnDataStart] = m_data->m_bulletStreamDataServerToClient[i];
+					}
+				}
+				int totalReceived = serverCmd.m_numDataStreamBytes + serverCmd.m_customCommandResultArgs.m_returnDataStart;
+				remaining = serverCmd.m_customCommandResultArgs.m_returnDataSizeInBytes - totalReceived;
+
+				if (remaining > 0)
+				{
+					m_data->m_hasStatus = false;
+					command.m_type = CMD_CUSTOM_COMMAND;
+					command.m_customCommandArgs.m_startingReturnBytes =
+						totalReceived;
+				}
+			}
+		}
+
+	} while (remaining > 0);
+
+	return m_data->m_hasStatus;
+}
+
+bool PhysicsDirect::processRequestBodyInfo(const struct SharedMemoryCommand& command, SharedMemoryStatus& status) {
+	bool hasStatus = m_data->m_commandProcessor->processCommand(command, status, &m_data->m_bulletStreamDataServerToClient[0], SHARED_MEMORY_MAX_STREAM_CHUNK_SIZE);
+	b3Clock clock;
+	double startTime = clock.getTimeInSeconds();
+	double timeOutInSeconds = m_data->m_timeOutInSeconds;
+	while ((!hasStatus) && (clock.getTimeInSeconds() - startTime < timeOutInSeconds))
+	{
+		hasStatus = m_data->m_commandProcessor->receiveStatus(status, &m_data->m_bulletStreamDataServerToClient[0], SHARED_MEMORY_MAX_STREAM_CHUNK_SIZE);
+	}
+	if (hasStatus) {
+		processBodyJointInfo(command.m_sdfRequestInfoArgs.m_bodyUniqueId, status);
+	}
+	m_data->m_hasStatus = hasStatus;
+	return m_data->m_hasStatus;
+}
+
 bool PhysicsDirect::submitClientCommand(const struct SharedMemoryCommand& command)
 {
+	if (command.m_type == CMD_CUSTOM_COMMAND)
+	{
+		return processCustomCommand(command);
+	}
 	if (command.m_type == CMD_REQUEST_DEBUG_LINES)
 	{
 		return processDebugLines(command);
@@ -1340,9 +1438,13 @@ bool PhysicsDirect::submitClientCommand(const struct SharedMemoryCommand& comman
 		return processOverlappingObjects(command);
 	}
 
-  if (command.m_type == CMD_REQUEST_MESH_DATA)
+	if (command.m_type == CMD_REQUEST_MESH_DATA)
 	{
 		return processMeshData(command);
+	}
+	if (command.m_type == CMD_REQUEST_BODY_INFO)
+	{
+		return processRequestBodyInfo(command, m_data->m_serverStatus);
 	}
 
 	bool hasStatus = m_data->m_commandProcessor->processCommand(command, m_data->m_serverStatus, &m_data->m_bulletStreamDataServerToClient[0], SHARED_MEMORY_MAX_STREAM_CHUNK_SIZE);
@@ -1591,6 +1693,16 @@ void PhysicsDirect::getCachedMeshData(struct b3MeshData* meshData)
 	*meshData = m_data->m_cachedMeshData;
 }
 
+void PhysicsDirect::getCachedTetraMeshData(struct b3TetraMeshData* meshData)
+{
+	m_data->m_cachedTetraMeshData.m_numVertices = m_data->m_cachedVertexPositions.size();
+
+	m_data->m_cachedTetraMeshData.m_vertices = m_data->m_cachedTetraMeshData.m_numVertices ? &m_data->m_cachedVertexPositions[0] : 0;
+
+	*meshData = m_data->m_cachedTetraMeshData;
+}
+
+
 void PhysicsDirect::getCachedContactPointInformation(struct b3ContactInformation* contactPointData)
 {
 	contactPointData->m_numContactPoints = m_data->m_cachedContactPoints.size();
@@ -1649,6 +1761,16 @@ void PhysicsDirect::getCachedMassMatrix(int dofCountCheck, double* massMatrix)
 			massMatrix[i] = m_data->m_cachedMassMatrix[i];
 		}
 	}
+}
+
+bool PhysicsDirect::getCachedReturnData(b3UserDataValue* returnData)
+{
+	if (m_data->m_cachedReturnDataValue.m_length)
+	{
+		*returnData = m_data->m_cachedReturnDataValue;
+		return true;
+	}
+	return false;
 }
 
 void PhysicsDirect::setTimeOut(double timeOutInSeconds)

@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <cstdlib>
 
 #include "OpenGLInclude.h"
 
@@ -124,6 +125,28 @@ void EGLOpenGLWindow::createWindow(const b3gWindowConstructionInfo& ci)
 	{
 		printf("eglQueryDevicesEXT Failed.\n");
 		m_data->egl_display = EGL_NO_DISPLAY;
+	} else
+	{
+		// default case, should always happen (for future compatibility)
+		if (m_data->m_renderDevice == -1)
+		{
+			// check env variable
+			const char* env_p = std::getenv("EGL_VISIBLE_DEVICES");
+
+			// variable is set
+			if(env_p != NULL)
+			{
+				m_data->m_renderDevice = std::atoi(env_p);
+				fprintf(stderr, "EGL device choice: %d of %d (from EGL_VISIBLE_DEVICES)\n", m_data->m_renderDevice, num_devices);
+
+            } else {
+                fprintf(stderr, "EGL device choice: %d of %d.\n", m_data->m_renderDevice, num_devices);
+            } // else leave with -1
+
+		} else
+		{
+			fprintf(stderr, "EGL device choice: %d of %d.\n", m_data->m_renderDevice, num_devices);
+		}
 	}
 	// Query EGL Screens
 	if (m_data->m_renderDevice == -1)
@@ -179,7 +202,7 @@ void EGLOpenGLWindow::createWindow(const b3gWindowConstructionInfo& ci)
 
 	if (!eglInitialize(m_data->egl_display, NULL, NULL))
 	{
-		fprintf(stderr, "Unable to initialize EGL\n");
+		fprintf(stderr, "eglInitialize() failed with error: %x\n", eglGetError());
 		exit(EXIT_FAILURE);
 	}
 
@@ -225,8 +248,20 @@ void EGLOpenGLWindow::createWindow(const b3gWindowConstructionInfo& ci)
 		exit(EXIT_FAILURE);
 	}
 
+	EGLint egl_context_attribs[] = {
+		EGL_CONTEXT_MAJOR_VERSION,
+		3,
+		EGL_CONTEXT_MINOR_VERSION,
+		3,
+		EGL_CONTEXT_OPENGL_PROFILE_MASK,
+		EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
+		EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE,
+		EGL_TRUE,
+		EGL_NONE,
+	};
+
 	m_data->egl_context = eglCreateContext(
-		m_data->egl_display, m_data->egl_config, EGL_NO_CONTEXT, NULL);
+		m_data->egl_display, m_data->egl_config, EGL_NO_CONTEXT, egl_context_attribs);
 	if (!m_data->egl_context)
 	{
 		fprintf(stderr, "Unable to create EGL context (eglError: %d)\n", eglGetError());

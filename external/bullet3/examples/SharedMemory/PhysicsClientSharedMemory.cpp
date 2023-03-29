@@ -54,6 +54,7 @@ struct PhysicsClientSharedMemoryInternalData
 	btAlignedObjectArray<b3CollisionShapeData> m_cachedCollisionShapes;
 
 	b3MeshData m_cachedMeshData;
+	b3TetraMeshData m_cachedTetraMeshData;
 	btAlignedObjectArray<b3MeshVertex> m_cachedVertexPositions;
 
 	btAlignedObjectArray<b3VRControllerEvent> m_cachedVREvents;
@@ -68,6 +69,9 @@ struct PhysicsClientSharedMemoryInternalData
 	btAlignedObjectArray<int> m_userDataIdsRequestInfo;
 	btHashMap<btHashInt, SharedMemoryUserData> m_userDataMap;
 	btHashMap<SharedMemoryUserDataHashKey, int> m_userDataHandleLookup;
+
+	btAlignedObjectArray<char> m_cachedReturnData;
+	b3UserDataValue m_cachedReturnDataValue;
 
 	SharedMemoryStatus m_tempBackupServerStatus;
 
@@ -699,6 +703,16 @@ const SharedMemoryStatus* PhysicsClientSharedMemory::processServerStatus()
 				}
 				break;
 			}
+			case CMD_PERFORM_COLLISION_DETECTION_COMPLETED:
+			{
+				B3_PROFILE("CMD_PERFORM_COLLISION_DETECTION_COMPLETED");
+
+				if (m_data->m_verboseOutput)
+				{
+					b3Printf("Server completed performing collision detection");
+				}
+				break;
+			}
 			case CMD_URDF_LOADING_FAILED:
 			{
 				B3_PROFILE("CMD_URDF_LOADING_FAILED");
@@ -1061,6 +1075,24 @@ const SharedMemoryStatus* PhysicsClientSharedMemory::processServerStatus()
 				b3Warning("Request mesh data failed");
 				break;
 			}
+			case CMD_REQUEST_TETRA_MESH_DATA_COMPLETED:
+			{
+				m_data->m_cachedVertexPositions.resize(serverCmd.m_sendMeshDataArgs.m_startingVertex + serverCmd.m_sendMeshDataArgs.m_numVerticesCopied);
+				btVector3* verticesReceived = (btVector3*)m_data->m_testBlock1->m_bulletStreamDataServerToClientRefactor;
+				for (int i = 0; i < serverCmd.m_sendMeshDataArgs.m_numVerticesCopied; i++)
+				{
+					m_data->m_cachedVertexPositions[i + serverCmd.m_sendMeshDataArgs.m_startingVertex].x = verticesReceived[i].x();
+					m_data->m_cachedVertexPositions[i + serverCmd.m_sendMeshDataArgs.m_startingVertex].y = verticesReceived[i].y();
+					m_data->m_cachedVertexPositions[i + serverCmd.m_sendMeshDataArgs.m_startingVertex].z = verticesReceived[i].z();
+					m_data->m_cachedVertexPositions[i + serverCmd.m_sendMeshDataArgs.m_startingVertex].w = verticesReceived[i].w();
+				}
+				break;
+			}
+			case CMD_REQUEST_TETRA_MESH_DATA_FAILED:
+			{
+				b3Warning("Request tetra mesh data failed");
+				break;
+			}
 			case CMD_CALCULATED_INVERSE_DYNAMICS_COMPLETED:
 			{
 				break;
@@ -1350,8 +1382,22 @@ const SharedMemoryStatus* PhysicsClientSharedMemory::processServerStatus()
 				b3Warning("Request getCollisionInfo failed");
 				break;
 			}
+			
 			case CMD_CUSTOM_COMMAND_COMPLETED:
 			{
+
+				m_data->m_cachedReturnData.resize(serverCmd.m_customCommandResultArgs.m_returnDataSizeInBytes);
+				m_data->m_cachedReturnDataValue.m_length = serverCmd.m_customCommandResultArgs.m_returnDataSizeInBytes;
+
+				if (serverCmd.m_customCommandResultArgs.m_returnDataSizeInBytes)
+				{
+					m_data->m_cachedReturnDataValue.m_type = serverCmd.m_customCommandResultArgs.m_returnDataType;
+					m_data->m_cachedReturnDataValue.m_data1 = &m_data->m_cachedReturnData[0];
+					for (int i = 0; i < serverCmd.m_numDataStreamBytes; i++)
+					{
+						m_data->m_cachedReturnData[i + serverCmd.m_customCommandResultArgs.m_returnDataStart] = m_data->m_testBlock1->m_bulletStreamDataServerToClientRefactor[i];
+					}
+				}
 				break;
 			}
 			case CMD_CALCULATED_JACOBIAN_COMPLETED:
@@ -1494,12 +1540,18 @@ const SharedMemoryStatus* PhysicsClientSharedMemory::processServerStatus()
 				b3Warning("Removing user data failed");
 				break;
 			}
+			case CMD_RESET_MESH_DATA_FAILED:
+			{
+				b3Warning("resetMeshData failed");
+				break;
+			}
 			case CMD_REQUEST_USER_DATA_COMPLETED:
 			case CMD_SYNC_USER_DATA_COMPLETED:
 			case CMD_REMOVE_USER_DATA_COMPLETED:
 			case CMD_ADD_USER_DATA_COMPLETED:
 			case CMD_REMOVE_STATE_FAILED:
 			case CMD_REMOVE_STATE_COMPLETED:
+			case CMD_RESET_MESH_DATA_COMPLETED:
 			{
 				break;
 			}
@@ -1664,6 +1716,7 @@ const SharedMemoryStatus* PhysicsClientSharedMemory::processServerStatus()
 			m_data->m_lastServerStatus = m_data->m_tempBackupServerStatus;
 		}
 
+		
 		if (serverCmd.m_type == CMD_REMOVE_USER_DATA_COMPLETED)
 		{
 			B3_PROFILE("CMD_REMOVE_USER_DATA_COMPLETED");
@@ -1851,6 +1904,23 @@ const SharedMemoryStatus* PhysicsClientSharedMemory::processServerStatus()
 			return 0;
 		}
 
+		if (serverCmd.m_type == CMD_CUSTOM_COMMAND_COMPLETED)
+		{
+			int totalReceived = (serverCmd.m_numDataStreamBytes + serverCmd.m_customCommandResultArgs.m_returnDataStart);
+			int remaining = serverCmd.m_customCommandResultArgs.m_returnDataSizeInBytes - totalReceived;
+			
+			if (remaining > 0)
+			{
+				// continue requesting return data
+				SharedMemoryCommand& command = m_data->m_testBlock1->m_clientCommands[0];
+				command.m_type = CMD_CUSTOM_COMMAND;
+				command.m_customCommandArgs.m_startingReturnBytes =
+					totalReceived;
+				submitClientCommand(command);
+				return 0;
+			}
+		}
+
 		return &m_data->m_lastServerStatus;
 	}
 	else
@@ -2006,6 +2076,16 @@ void PhysicsClientSharedMemory::getCachedMassMatrix(int dofCountCheck, double* m
 	}
 }
 
+bool PhysicsClientSharedMemory::getCachedReturnData(b3UserDataValue* returnData)
+{
+	if (m_data->m_cachedReturnDataValue.m_length)
+	{
+		*returnData = m_data->m_cachedReturnDataValue;
+		return true;
+	}
+	return false;
+
+}
 void PhysicsClientSharedMemory::getCachedVisualShapeInformation(struct b3VisualShapeInformation* visualShapesInfo)
 {
 	visualShapesInfo->m_numVisualShapes = m_data->m_cachedVisualShapes.size();
@@ -2025,6 +2105,15 @@ void PhysicsClientSharedMemory::getCachedMeshData(struct b3MeshData* meshData)
 	m_data->m_cachedMeshData.m_vertices = m_data->m_cachedMeshData.m_numVertices ? &m_data->m_cachedVertexPositions[0] : 0;
 	
 	*meshData = m_data->m_cachedMeshData;
+}
+
+void PhysicsClientSharedMemory::getCachedTetraMeshData(struct b3TetraMeshData* meshData)
+{
+	m_data->m_cachedTetraMeshData.m_numVertices = m_data->m_cachedVertexPositions.size();
+	
+	m_data->m_cachedTetraMeshData.m_vertices = m_data->m_cachedTetraMeshData.m_numVertices ? &m_data->m_cachedVertexPositions[0] : 0;
+	
+	*meshData = m_data->m_cachedTetraMeshData;
 }
 
 const float* PhysicsClientSharedMemory::getDebugLinesFrom() const
