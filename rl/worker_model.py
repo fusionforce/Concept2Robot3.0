@@ -40,6 +40,12 @@ from scipy.special import softmax
 #####
 from agents import Agent
 
+
+## CLIP
+import clip
+import linecache
+
+
 def mse_metric(actual, predicted):
     sum_error = 0.0
     # loop over all values
@@ -147,7 +153,18 @@ class Worker(object):
            RobotEnv = getattr(env_module, "Engine{}".format(self.TaskId))
            self.env = RobotEnv(worker_id=self.wid, opti=self.params, cReward=self.params.video_reward, p_id=self.p_id,
                             taskId=self.TaskId, n_dmps=7)
-           self.task_vec = np.load("../Languages/" + str(self.TaskId) + '.npy')
+           
+           
+           ## CLIP encoding
+           ## CLIP
+           self.clip_model, _ = clip.load("ViT-L/14", device="cuda")
+           # CLIP text encoding
+           #  +1 because labels.txt is 0 indexed
+           line = linecache.getline('../Languages/labels.txt', self.params.task_id+1)
+           task_string = line.strip().split(":")[0]
+           task_string = eval(task_string)
+           tokens = clip.tokenize(task_string).to("cuda")
+           self.task_vec = self.clip_model.encode_text(tokens).float()
 
 
     def train(self, restore_episode=0, restore_path=None, restore_episode_goal=0, restore_path_goal=None):
@@ -285,9 +302,7 @@ class Worker(object):
                     break
 
     def train_force(self, restore_episode=0, restore_path=None, restore_episode_goal=0, restore_path_goal=None):
-        print("restiore_episode_goal",restore_episode_goal)
-        self.agent.restore_actor_goal_only(step=restore_episode_goal, restore_path=restore_path_goal)
-        self.agent.restore_actor(step=restore_episode_goal, restore_path=restore_path_goal)
+       
         #self.agent.memory = np.load('memeory.npy')
         #print(self.agent.memory[0])
         #print(self.agent.memory[1])
@@ -301,6 +316,9 @@ class Worker(object):
 
         if restore_path is not None and restore_episode > 0:
             self.agent.restore_force(restore_episode, restore_path)
+            print("restiore_episode_goal",restore_episode_goal)
+            self.agent.restore_actor_goal_only(step=restore_episode_goal, restore_path=restore_path_goal)
+            self.agent.restore_actor(step=restore_episode_goal, restore_path=restore_path_goal)
 
         total_episode = 0 #+ restore_episode
 
