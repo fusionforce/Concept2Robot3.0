@@ -10,7 +10,6 @@ import glob
 import imageio
 import math
 import datetime
-import clip
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -20,10 +19,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchvision import transforms
-
-#file reading
-import linecache
-
 
 def set_init(layers):
   for layer in layers:
@@ -35,8 +30,6 @@ class Actor(nn.Module):
     super(Actor, self).__init__()
     self.params = params
     self.model = models.resnet18(pretrained=True) 
-    ## CLIP
-    self.clip_model, _ = clip.load("ViT-L/14", device="cuda")
     self.action_dim = action_dim
     self.max_action = max_action
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])  
@@ -47,7 +40,7 @@ class Actor(nn.Module):
     )
     self.img_feat_block2 = nn.Linear(256 * 2 * 3, 256)
 
-    self.task_feat_block1 = nn.Linear(768, 512)
+    self.task_feat_block1 = nn.Linear(self.params.task_dim, 512)
     self.task_feat_block2 = nn.Linear(512, 256)
     self.task_feat_block3 = nn.Linear(256, 128)
 
@@ -88,26 +81,18 @@ class Actor(nn.Module):
     set_init([self.img_feat_block2, self.task_feat_block1, self.task_feat_block2, self.task_feat_block3,\
       self.action_feat_block1, self.action_feat_block2, self.action_feat_block3, \
       self.action_feat_block4])
-    
-    ##
-    
+
   def forward(self, state, task_vec, training=False):
     bs = state.size(0)
     img_feat = self.feature_extractor(state) 
     img_feat = self.img_feat_block1(img_feat)
     img_feat = img_feat.view(-1,256 * 2 * 3)
     img_feat = self.img_feat_block2(img_feat) 
-    
-    # CLIP text encoding
-    #  +1 because labels.txt is 0 indexed
-    line = linecache.getline('../Languages/labels.txt', self.params.task_id+1)
-    task_string = line.strip().split(":")[0]
-    task_string = eval(task_string)
-    tokens = clip.tokenize(task_string).to("cuda")
-    text_features = self.clip_model.encode_text(tokens).float().squeeze()
-    task_feat = F.relu(self.task_feat_block1(text_features))
+
+    task_feat = F.relu(self.task_feat_block1(task_vec))
     task_feat = F.relu(self.task_feat_block2(task_feat))
     task_feat = F.relu(self.task_feat_block3(task_feat))
+   
     action_feat_raw = torch.cat([img_feat,task_feat],-1)
 
     ### generate goal
@@ -144,6 +129,3 @@ class Actor(nn.Module):
       return action
     else:
       return goal, force
-    
-  
- 

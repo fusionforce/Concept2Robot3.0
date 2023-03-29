@@ -1,9 +1,11 @@
 python3 run.py\
         --task_id 5\
-        --exp_name "without_force_goal_only"\
-        --gui \
+        --exp_name "CLIP-text-encoding-test-6"
         --stage train\
         --batch_size 64\
         --action_penalty 0.2\
-        --start_learning_episode 1000\
-        --comment "action_penalty_0.2_critic_goal_only"
+        --start_learning_episode 500\
+        --saving_model_freq 500\
+        --max_ep 5005 \
+        --task_dim 768 \
+        --comment "CLIP text encoding"
