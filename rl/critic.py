@@ -79,7 +79,7 @@ class Critic(nn.Module):
     task_string = line.strip().split(":")[0]
     task_string = eval(task_string)
     tokens = clip.tokenize(task_string).to("cuda")
-    text_features = self.clip_model.encode_text(tokens).float()
+    text_features = self.clip_model.encode_text(tokens).float().squeeze()
     ### 
     
     task_feat = F.relu(self.task_feat_block1(text_features))
