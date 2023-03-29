@@ -20,6 +20,9 @@ import torch.nn.functional as F
 
 from torchvision import transforms
 
+import clip
+#line parsing
+import linecache
 
 def set_init(layers):
   for layer in layers:
@@ -32,6 +35,8 @@ class Master(nn.Module):
     super(Master, self).__init__()
     self.params = params
     self.model = models.resnet18(pretrained=True) 
+    ## CLIP
+    self.clip_model, _ = clip.load("ViT-L/14", device="cuda")
     self.action_dim = action_dim
     self.max_action = max_action
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])  
@@ -94,8 +99,17 @@ class Master(nn.Module):
     img_feat = F.relu(self.img_feat_block2(img_feat))
     img_feat = F.relu(self.img_feat_block3(img_feat))
     img_feat = F.relu(torch.tanh(self.img_feat_block4(img_feat)))
- 
-    task_feat = F.relu(self.task_feat_block1(task_vec))
+
+    
+    # CLIP text encoding
+    # +1 because labels.txt is 0 indexed
+    line = linecache.getline('../Languages/labels.txt', self.params.task_id+1)
+    task_string = line.strip().split(":")[0]
+    task_string = eval(task_string)
+    tokens = clip.tokenize(task_string).to("cuda")
+    text_features = self.clip_model.encode_text(tokens)
+    ### 
+    task_feat = F.relu(self.task_feat_block1(text_features))
     task_feat = F.relu(self.task_feat_block2(task_feat))
     task_feat = F.relu(self.task_feat_block3(task_feat))
 
