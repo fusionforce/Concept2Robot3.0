@@ -162,10 +162,8 @@ class Worker(object):
            task_string = line.strip().split(":")[0]
            task_string = eval(task_string)
            tokens = clip.tokenize(task_string).to("cuda")
-           self.task_vec_og = np.load("../Languages/" + str(self.TaskId) + '.npy')
-           print("self.task_vec_og: ", self.task_vec_og.shape)
            self.task_vec = self.clip_model.encode_text(tokens).squeeze().float().detach().cpu().numpy()
-           print("self.task_vec: ", self.task_vec.shape)
+
 
 
     def train(self, restore_episode=0, restore_path=None, restore_episode_goal=0, restore_path_goal=None):
