@@ -15,7 +15,7 @@ def load_args():
     parser.add_argument('--img_w', default=160, type=int)
     parser.add_argument('--img_h', default=120, type=int)
     parser.add_argument('--state_dim', default=120 * 160 * 3, type=int, help='state dimension of the scene image')
-    parser.add_argument('--task_dim', default=1024, type=int,
+    parser.add_argument('--task_dim', default=768, type=int,
                         help='task description dimension of the language instruction')
     parser.add_argument('--traj_timesteps', default=49, type=int, help='the total timesteps of the trjactory')
     parser.add_argument('--force_term', action='store_false', help='use force term to generate the motion trajectory')

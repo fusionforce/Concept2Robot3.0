@@ -156,15 +156,16 @@ class Worker(object):
            
            
            ## CLIP encoding
-           ## CLIP
            self.clip_model, _ = clip.load("ViT-L/14", device="cuda")
-           # CLIP text encoding
            #  +1 because labels.txt is 0 indexed
            line = linecache.getline('../Languages/labels.txt', self.params.task_id+1)
            task_string = line.strip().split(":")[0]
            task_string = eval(task_string)
            tokens = clip.tokenize(task_string).to("cuda")
-           self.task_vec = self.clip_model.encode_text(tokens).float()
+           self.task_vec_og = np.load("../Languages/" + str(self.TaskId) + '.npy')
+           print("self.task_vec_og: ", self.task_vec_og.shape)
+           self.task_vec = self.clip_model.encode_text(tokens).squeeze().float().detach().cpu().numpy()
+           print("self.task_vec: ", self.task_vec.shape)
 
 
     def train(self, restore_episode=0, restore_path=None, restore_episode_goal=0, restore_path_goal=None):
@@ -491,7 +492,18 @@ class Worker(object):
             max_iteration = self.params.max_ep_test
         elif self.params.stage == "imitation" or self.params.stage == "imitation_test":
             max_iteration = self.params.max_ep_imitation
-            self.task_vec = np.load("../Languages/"+str(self.TaskId)+'.npy')
+            
+            ## CLIP encoding
+            self.clip_model, _ = clip.load("ViT-L/14", device="cuda")
+            #  +1 because labels.txt is 0 indexed
+            line = linecache.getline('../Languages/labels.txt', self.params.task_id+1)
+            task_string = line.strip().split(":")[0]
+            task_string = eval(task_string)
+            tokens = clip.tokenize(task_string).to("cuda")
+            self.task_vec_og = np.load("../Languages/" + str(self.TaskId) + '.npy')
+            print("self.task_vec_og: ", self.task_vec_og.shape)
+            self.task_vec = self.clip_model.encode_text(tokens).squeeze().float().detach().cpu().numpy()
+            print("self.task_vec: ", self.task_vec.shape)
 
         for ep_iter in range(max_iteration):
             observation = self.env.reset()

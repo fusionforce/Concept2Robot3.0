@@ -142,7 +142,7 @@ class Master_F(nn.Module):
     self.img_feat_block3 = nn.Linear(256 * self.params.stack_num, 128)
     self.img_feat_block4 = nn.Linear(128, self.img_feat_dim)
 
-    self.task_feat_block1 = nn.Linear(1024, 512)
+    self.task_feat_block1 = nn.Linear(self.params.task_dim, 512)
     self.task_feat_block2 = nn.Linear(512, 256)
     self.task_feat_block3 = nn.Linear(256, 256)
 
