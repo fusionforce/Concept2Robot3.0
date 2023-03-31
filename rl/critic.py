@@ -20,6 +20,7 @@ import torch.nn.functional as F
 
 from torchvision import transforms
 
+from r3m.r3m import load_r3m
 
 def set_init(layers):
   for layer in layers:
@@ -31,7 +32,7 @@ class Critic(nn.Module):
   def __init__(self, state_dim, action_dim, task_dim, max_action, params):
     super(Critic, self).__init__()
     self.params = params
-    self.model = models.resnet18(pretrained=True)
+    self.model = load_r3m("resnet18")
     self.action_dim = action_dim
     self.max_action = max_action
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])
@@ -41,8 +42,12 @@ class Critic(nn.Module):
       nn.BatchNorm2d(256),
     )
     self.img_feat_block2 = nn.Linear(256 * 2 * 3, 256)
+    self.img_feat_block1_r3m = nn.Linear(512, 256)
+    self.img_feat_block2_bottleneck = nn.Linear(256 * 2 * 3, 512)
+
 
     self.task_feat_block1 = nn.Linear(1024, 512)
+    self.task_feat_block1_r3m = nn.Linear(768, 512)
     self.task_feat_block2 = nn.Linear(512, 256)
     self.task_feat_block3 = nn.Linear(256, 128)
 
@@ -52,24 +57,24 @@ class Critic(nn.Module):
     self.action_feat_block3 = nn.Linear(256, 128)
 
     self.critic_feat_block1 = nn.Linear(256 + 128 + 128, 512)
+    self.critic_feat_block1_bottleneck = nn.Linear(512 + 512 + 128, 512)
     self.critic_feat_block2 = nn.Linear(512, 128)
     self.critic_feat_block3 = nn.Linear(128, 64)
     self.critic_feat_block4 = nn.Linear(64, 16)
     self.critic_feat_block5 = nn.Linear(16, 1)
 
-    set_init([self.img_feat_block2, self.task_feat_block1, self.task_feat_block2, self.task_feat_block3,\
+    set_init([self.img_feat_block2, self.img_feat_block2_bottleneck, self.task_feat_block1, self.task_feat_block1_r3m, self.task_feat_block2, self.task_feat_block3,\
       self.action_feat_block1, self.action_feat_block2, self.action_feat_block3,\
-      self.critic_feat_block1, self.critic_feat_block2, self.critic_feat_block3, self.critic_feat_block4,\
+      self.critic_feat_block1, self.critic_feat_block1_bottleneck, self.critic_feat_block2, self.critic_feat_block3, self.critic_feat_block4,\
       self.critic_feat_block5])
 
   def forward(self, state, task_vec, action):
     bs = state.size(0)
-    img_feat = self.feature_extractor(state)
-    img_feat = self.img_feat_block1(img_feat)
-    img_feat = img_feat.view(-1,256 * 2 * 3)
-    img_feat = self.img_feat_block2(img_feat)
 
-    task_feat = F.relu(self.task_feat_block1(task_vec))
+    img_feat = self.model(state) 
+    img_feat = self.img_feat_block1_r3m(img_feat) 
+
+    task_feat = F.relu(self.task_feat_block1_r3m(task_vec))
     task_feat = F.relu(self.task_feat_block2(task_feat))
     task_feat = F.relu(self.task_feat_block3(task_feat))
 

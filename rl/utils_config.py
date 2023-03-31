@@ -15,16 +15,16 @@ def load_args():
     parser.add_argument('--img_w', default=160, type=int)
     parser.add_argument('--img_h', default=120, type=int)
     parser.add_argument('--state_dim', default=120 * 160 * 3, type=int, help='state dimension of the scene image')
-    parser.add_argument('--task_dim', default=1024, type=int,
+    parser.add_argument('--task_dim', default=768, type=int,
                         help='task description dimension of the language instruction')
     parser.add_argument('--traj_timesteps', default=49, type=int, help='the total timesteps of the trjactory')
-    parser.add_argument('--force_term', action='store_true', help='use force term to generate the motion trajectory')
+    parser.add_argument('--force_term', action='store_false', help='use force term to generate the motion trajectory')
     parser.add_argument('--only_force_term', action='store_true',
                         help='only use force term to generate the motion trajectory')
 
     ### experiment specification
     parser.add_argument('--classifier', default='video', type=str, choices=['video', 'image'])
-    parser.add_argument('--max_ep', default=500000, type=int, help="maximum episode in the training stage")
+    parser.add_argument('--max_ep', default=5500, type=int, help="maximum episode in the training stage")
     parser.add_argument('--max_action', default=0.5, type=float, help='maximum action in translation')
     parser.add_argument('--rotation_max_action', default=0.1, type=float, help='maximum action in rotation')
 

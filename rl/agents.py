@@ -65,6 +65,7 @@ class Agent(object):
 
     self.critic = Critic(self.params.state_dim, self.params.a_dim, self.params.task_dim, self.params.max_action, self.params).to(self.device)
     self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), self.params.a_lr)
+    self.critic_goal_only = Critic(self.params.state_dim, self.params.a_dim, self.params.task_dim, self.params.max_action, self.params).to(self.device)
 
     self.master = Master(self.params.state_dim, self.params.a_dim, self.params.task_dim, self.params.max_action, self.params).to(self.device)
     self.master_optimizer = torch.optim.Adam(self.master.parameters(), self.params.m_lr)

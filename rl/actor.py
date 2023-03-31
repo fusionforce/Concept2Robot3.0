@@ -20,6 +20,9 @@ import torch.nn.functional as F
 
 from torchvision import transforms
 
+from r3m.r3m import load_r3m
+from r3m.r3m.models.models_language import LangEncoder, LanguageReward
+
 def set_init(layers):
   for layer in layers:
     nn.init.normal_(layer.weight, mean=0., std=0.05)
@@ -29,7 +32,9 @@ class Actor(nn.Module):
   def __init__(self, state_dim, action_dim, task_dim, max_action, params):
     super(Actor, self).__init__()
     self.params = params
-    self.model = models.resnet18(pretrained=True) 
+    # self.model = models.resnet18(pretrained=True) 
+    self.model = load_r3m("resnet18")
+    # print("MODEL: ", self.model)
     self.action_dim = action_dim
     self.max_action = max_action
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])  
@@ -39,12 +44,16 @@ class Actor(nn.Module):
       nn.BatchNorm2d(256),
     )
     self.img_feat_block2 = nn.Linear(256 * 2 * 3, 256)
+    self.img_feat_block1_r3m = nn.Linear(512, 256)
+    self.img_feat_block2_bottleneck = nn.Linear(256 * 2 * 3, 512)
 
     self.task_feat_block1 = nn.Linear(1024, 512)
+    self.task_feat_block1_r3m = nn.Linear(768, 512)
     self.task_feat_block2 = nn.Linear(512, 256)
     self.task_feat_block3 = nn.Linear(256, 128)
 
     self.action_feat_block1 = nn.Linear(256 + 128, 256)
+    self.action_feat_block1_bottleneck = nn.Linear(512 + 512, 256)
     self.action_feat_block2 = nn.Linear(256, 128)
     self.action_feat_block3 = nn.Linear(128, 64)
     self.action_feat_block4 = nn.Linear(64, 7)
@@ -53,6 +62,11 @@ class Actor(nn.Module):
     # 1
     self.force_feat_block1 = nn.Sequential(
       nn.ConvTranspose1d(in_channels=256 + 128, out_channels=256, kernel_size=4, stride=1, bias=True),
+      nn.ReLU(),
+    )
+
+    self.force_feat_block1_bottleneck = nn.Sequential(
+      nn.ConvTranspose1d(in_channels=512 + 512, out_channels=256, kernel_size=4, stride=1, bias=True),
       nn.ReLU(),
     )
 
@@ -78,24 +92,38 @@ class Actor(nn.Module):
       nn.ConvTranspose1d(in_channels=64, out_channels=self.params.a_dim, kernel_size=3, stride=2, padding=1),
     )
 
-    set_init([self.img_feat_block2, self.task_feat_block1, self.task_feat_block2, self.task_feat_block3,\
-      self.action_feat_block1, self.action_feat_block2, self.action_feat_block3, \
+    set_init([self.img_feat_block2, self.img_feat_block2_bottleneck, self.task_feat_block1, self.task_feat_block2, self.task_feat_block3,\
+      self.action_feat_block1, self.action_feat_block1_bottleneck, self.action_feat_block2, self.action_feat_block3, \
       self.action_feat_block4])
 
   def forward(self, state, task_vec, training=False):
     bs = state.size(0)
-    img_feat = self.feature_extractor(state) 
-    img_feat = self.img_feat_block1(img_feat)
-    img_feat = img_feat.view(-1,256 * 2 * 3)
-    img_feat = self.img_feat_block2(img_feat) 
+    # state.shape torch.Size([1, 3, 120, 160])
+    # task_vec.shape torch.Size([1, 1024])
+    # print(state.shape)
 
-    task_feat = F.relu(self.task_feat_block1(task_vec))
+    img_feat = self.model(state) 
+    img_feat = self.img_feat_block1_r3m(img_feat) 
+
+    # img_feat = self.feature_extractor(state) 
+    # # print(img_feat.shape) # torch.Size([1, 512, 4, 5])
+    # img_feat = self.img_feat_block1(img_feat)
+    # # print(img_feat.shape) # torch.Size([1, 256, 2, 3])
+    # img_feat = img_feat.view(-1,256 * 2 * 3)
+    # # print(img_feat.shape) # torch.Size([1, 1536])
+    # # img_feat = self.img_feat_block2(img_feat) 
+    # # print(img_feat.shape) # torch.Size([1, 256])
+    # img_feat = self.img_feat_block2_bottleneck(img_feat)
+    
+    task_feat = F.relu(self.task_feat_block1_r3m(task_vec))
+    # task_feat = F.relu(self.task_feat_block1(task_vec))
     task_feat = F.relu(self.task_feat_block2(task_feat))
     task_feat = F.relu(self.task_feat_block3(task_feat))
    
     action_feat_raw = torch.cat([img_feat,task_feat],-1)
 
     ### generate goal
+    # action_feat = F.relu(self.action_feat_block1_bottleneck(action_feat_raw))
     action_feat = F.relu(self.action_feat_block1(action_feat_raw))
     action_feat = F.relu(self.action_feat_block2(action_feat))
     action_feat = F.relu(self.action_feat_block3(action_feat))
@@ -112,6 +140,7 @@ class Actor(nn.Module):
     ### generate force
     force_feat = action_feat_raw.unsqueeze(2)
     force_feat = F.relu(self.force_feat_block1(force_feat))
+    # force_feat = F.relu(self.force_feat_block1_bottleneck(force_feat))
     force_feat = F.relu(self.force_feat_block2(force_feat))
     force_feat = F.relu(self.force_feat_block3(force_feat))
     force_feat = F.relu(self.force_feat_block4(force_feat))
