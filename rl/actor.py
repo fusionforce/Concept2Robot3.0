@@ -10,6 +10,7 @@ import glob
 import imageio
 import math
 import datetime
+import linecache
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -19,6 +20,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchvision import transforms
+from transformers import ViltProcessor, ViltModel, ViltConfig
+
 
 def set_init(layers):
   for layer in layers:
@@ -32,7 +35,18 @@ class Actor(nn.Module):
     self.model = models.resnet18(pretrained=True) 
     self.action_dim = action_dim
     self.max_action = max_action
-    self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])  
+    self.raw_text = eval(linecache.getline('../Languages/labels.txt', self.params.task_id+1).strip().split(":")[0])
+    self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])
+    # ViLT
+    vilt_config = ViltConfig()
+    vilt_config.hidden_size = 60
+    vilt_config.num_hidden_layers = 8
+    self.vilt_processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-mlm")
+    self.vilt_model = ViltModel(vilt_config).from_pretrained("dandelin/vilt-b32-mlm")
+    self.vilt_layers = nn.Sequential(
+            nn.Linear(197*64, 768),
+            nn.Linear(768, 384)
+    )
     self.img_feat_block1 = nn.Sequential(
       nn.Conv2d(in_channels=512,out_channels=256,kernel_size=(3,3),stride=(2,2),padding=(1,1),bias=True),
       nn.ReLU(),
@@ -84,16 +98,31 @@ class Actor(nn.Module):
 
   def forward(self, state, task_vec, training=False):
     bs = state.size(0)
-    img_feat = self.feature_extractor(state) 
-    img_feat = self.img_feat_block1(img_feat)
-    img_feat = img_feat.view(-1,256 * 2 * 3)
-    img_feat = self.img_feat_block2(img_feat) 
+    # img_feat = self.feature_extractor(state) 
+    # img_feat = self.img_feat_block1(img_feat)
+    # img_feat = img_feat.view(-1,256 * 2 * 3)
+    # img_feat = self.img_feat_block2(img_feat) 
 
-    task_feat = F.relu(self.task_feat_block1(task_vec))
-    task_feat = F.relu(self.task_feat_block2(task_feat))
-    task_feat = F.relu(self.task_feat_block3(task_feat))
+    # task_feat = F.relu(self.task_feat_block1(task_vec))
+    # task_feat = F.relu(self.task_feat_block2(task_feat))
+    # task_feat = F.relu(self.task_feat_block3(task_feat))
    
-    action_feat_raw = torch.cat([img_feat,task_feat],-1)
+    # action_feat_raw = torch.cat([img_feat,task_feat],-1)
+    vilt_outputs = []
+    for i in range(state.shape[0]):
+      inputs = self.vilt_processor(transforms.ToPILImage()(state[i]), self.raw_text, return_tensors="pt")
+      for key in inputs:
+        inputs[key] = inputs[key].cuda()
+      print(":::::ViLT preprocessed inputs::::::", inputs)
+      outputs = self.vilt_model(**inputs)
+      outputs = outputs.last_hidden_state
+      print(":::::Outputs shape before flatten::::::::", outputs.shape)
+      outputs = outputs.view(1, -1)
+      print(":::::Outputs shape after flatten::::::::", outputs.shape)
+      outputs = self.vilt_layers(outputs)
+      vilt_outputs.append(outputs)
+    action_feat_raw = torch.cat(vilt_outputs)
+    print(":::::ViLT last hidden state::::::", action_feat_raw.shape)
 
     ### generate goal
     action_feat = F.relu(self.action_feat_block1(action_feat_raw))

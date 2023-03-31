@@ -18,7 +18,7 @@ def load_args():
     parser.add_argument('--task_dim', default=1024, type=int,
                         help='task description dimension of the language instruction')
     parser.add_argument('--traj_timesteps', default=49, type=int, help='the total timesteps of the trjactory')
-    parser.add_argument('--force_term', action='store_true', help='use force term to generate the motion trajectory')
+    parser.add_argument('--force_term', action='store_false', help='use force term to generate the motion trajectory')
     parser.add_argument('--only_force_term', action='store_true',
                         help='only use force term to generate the motion trajectory')
 

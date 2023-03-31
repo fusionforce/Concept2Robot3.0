@@ -10,6 +10,7 @@ import glob
 import imageio
 import math
 import datetime
+import linecache
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -19,6 +20,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchvision import transforms
+from transformers import ViltProcessor, ViltModel
 
 
 def set_init(layers):
@@ -34,7 +36,10 @@ class Master(nn.Module):
     self.model = models.resnet18(pretrained=True) 
     self.action_dim = action_dim
     self.max_action = max_action
+    self.raw_text = eval(linecache.getline('../Languages/labels.txt', self.params.task_id+1).strip().split(":")[0])
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])  
+    self.vilt_processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-mlm")
+    self.vilt_model = ViltModel.from_pretrained("dandelin/vilt-b32-mlm")
     self.img_feat_block1 = nn.Sequential(
       nn.Conv2d(in_channels=512,out_channels=256,kernel_size=(3,3),stride=(2,2),padding=(1,1),bias=True),
       nn.ReLU(),
@@ -131,6 +136,7 @@ class Master_F(nn.Module):
     self.model = models.resnet18(pretrained=True)
     self.action_dim = action_dim
     self.max_action = max_action
+    self.raw_text = eval(linecache.getline('../Languages/labels.txt', self.params.task_id+1).strip().split(":")[0])
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])
     self.img_feat_block1 = nn.Sequential(
       nn.Conv2d(in_channels=512, out_channels=256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=True),
