@@ -33,17 +33,17 @@ class Actor(nn.Module):
     super(Actor, self).__init__()
     self.params = params
     self.model = models.resnet18(pretrained=True) 
-    self.clip_model, self.preprocess_clip = clip.load("ViT-L/14", device = "cuda")
+    self.clip_model, self.preprocess_clip = clip.load("RN101", device = "cuda")
     self.action_dim = action_dim
     self.max_action = max_action
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])  
-    self.clip_img_extractor = torch..nn.Sequential(*list(self.clip_model.children())[:-2])
     self.img_feat_block1 = nn.Sequential(
       nn.Conv2d(in_channels=768,out_channels=256,kernel_size=(3,3),stride=(2,2),padding=(1,1),bias=True),
       nn.ReLU(),
       nn.BatchNorm2d(256),
     )
-    self.img_feat_block2 = nn.Linear(256 * 2 * 3, 256)
+    self.img_feat_block2 = nn.Linear(256 * 2, 256)
+    # self.img_feat_block2 = nn.Linear(256 * 3, 256)
 
     self.task_feat_block1 = nn.Linear(self.params.task_dim, 512)
     self.task_feat_block2 = nn.Linear(512, 256)
@@ -89,20 +89,18 @@ class Actor(nn.Module):
 
   def forward(self, state, task_vec, training=False):
     bs = state.size(0)
-    transform = transforms.ToPILImage()
-    pil_img = transform(state.squeeze())
-    image = self.preprocess_clip(pil_img).unsqueeze(0).to("cuda")
-    img_feat_c2r = self.feature_extractor(state) 
-    img_feat_clip = self.clip_model.encode_image(image)
-    print("image feature clip shape::::::::", img_feat_clip.shape, "\n image feature c2r shape::::::::::", img_feat_c2r.shape)
-    img_feat = self.img_feat_block1(img_feat)
-    img_feat = img_feat.view(-1,256 * 2 * 3)
-    img_feat = self.img_feat_block2(img_feat) 
+    images_preprocessed = []
+    for i in range(state.shape[0]):
+      image_preprocessed = self.preprocess_clip(transforms.ToPILImage()(state[i])).cuda()
+      images_preprocessed.append(image_preprocessed)
+    images_preprocessed = torch.stack(images_preprocessed)
+    img_feat = self.clip_model.encode_image(images_preprocessed)
+    img_feat = self.img_feat_block2(img_feat.float())
 
     task_feat = F.relu(self.task_feat_block1(task_vec))
     task_feat = F.relu(self.task_feat_block2(task_feat))
     task_feat = F.relu(self.task_feat_block3(task_feat))
-   
+
     action_feat_raw = torch.cat([img_feat,task_feat],-1)
 
     ### generate goal

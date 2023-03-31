@@ -1,11 +1,11 @@
 python3 run.py\
         --task_id 5\
-        --exp_name "CLIP-text-encoding-test-6"
+        --exp_name "CLIP-text+vision-4"\
         --stage train\
         --batch_size 64\
         --action_penalty 0.2\
-        --start_learning_episode 500\
+        --start_learning_episode 100\
         --saving_model_freq 500\
         --max_ep 5005 \
-        --task_dim 768 \
-        --comment "CLIP text encoding"
+        --task_dim 512 \
+        --comment "CLIP text+vision 4"

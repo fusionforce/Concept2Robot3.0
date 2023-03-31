@@ -35,8 +35,14 @@ from actor import Actor
 from critic import Critic
 from master import Master
 
+def _convert_image_to_rgb(image):
+    return image.convert("RGB")
+
 transforms = transforms.Compose([
   transforms.ToPILImage(),
+  # transforms.Resize(224, interpolation=transforms.InterpolationMode.BILINEAR),
+  # transforms.CenterCrop(224),
+  # _convert_image_to_rgb,
   transforms.ToTensor(),
   transforms.Normalize(mean=[0.485, 0.456, 0.406],
                        std=[0.229, 0.224, 0.225])
@@ -111,7 +117,7 @@ class Agent(object):
     print(save_file_path)
 
   def choose_action(self, state, task_vec):
-    state = state.reshape((-1,120,160,3)).astype(np.uint8)
+    state = state.reshape((-1,self.params.img_h,self.params.img_w,3)).astype(np.uint8)
     state_list = [transforms(s) for s in state]
     state = torch.stack(state_list)
     state = torch.FloatTensor(state).to(self.device)
@@ -122,7 +128,7 @@ class Agent(object):
     return goal_action, force_action
 
   def choose_action_goal_only(self, state, task_vec):
-    state = state.reshape((-1,120,160,3)).astype(np.uint8)
+    state = state.reshape((-1,self.params.img_h,self.params.img_w,3)).astype(np.uint8)
     state_list = [transforms(s) for s in state]
     state = torch.stack(state_list)
     state = torch.FloatTensor(state).to(self.device)
@@ -131,7 +137,7 @@ class Agent(object):
     return goal_action.cpu().data.numpy().flatten()
 
   def choose_action_master(self, state, task_vec):
-    state = state.reshape((-1,120,160,3)).astype(np.uint8)
+    state = state.reshape((-1,self.params.img_h,self.params.img_w,3)).astype(np.uint8)
     state_list = [transforms(s) for s in state]
     state = torch.stack(state_list)
     state = torch.FloatTensor(state).to(self.device)
@@ -142,7 +148,7 @@ class Agent(object):
     return goal_action, force_action
 
   def choose_action_feedback(self, state, task_vec):
-    state = state.reshape((-1,120,160,3)).astype(np.uint8)
+    state = state.reshape((-1,self.params.img_h,self.params.img_w,3)).astype(np.uint8)
     state_list = [transforms(s) for s in state]
     state = torch.stack(state_list)
     state = torch.FloatTensor(state).to(self.device)
@@ -185,7 +191,7 @@ class Agent(object):
     index8 = index7 + self.params.a_dim
     ba_gt = bt[:, index7: index8]
 
-    state = bs.copy().reshape((-1,120,160,3)).astype(np.uint8)
+    state = bs.copy().reshape((-1,self.params.img_h,self.params.img_w,3)).astype(np.uint8)
     state_list = [transforms(s) for s in state]
     state = torch.stack(state_list)
     state = torch.FloatTensor(state).to(self.device)
@@ -299,7 +305,7 @@ class Agent(object):
 
     bs_next = self.memory_feedback[indices_next, :][:, index1: index2]
 
-    state = bs.copy().reshape((-1, 120, 160, 3)).astype(np.uint8)
+    state = bs.copy().reshape((-1, self.params.img_h, self.params.img_w, 3)).astype(np.uint8)
     state_list = [transforms(s) for s in state]
     state = torch.stack(state_list)
     state = torch.FloatTensor(state).to(self.device)
@@ -307,7 +313,7 @@ class Agent(object):
     action = ba.copy().reshape((-1, self.params.a_dim))
     action = torch.FloatTensor(action).to(self.device)
 
-    state_next = bs_next.copy().reshape((-1, 120, 160, 3)).astype(np.uint8)
+    state_next = bs_next.copy().reshape((-1, self.params.img_h, self.params.img_w, 3)).astype(np.uint8)
     state_next_list = [transforms(s) for s in state_next]
     state_next = torch.stack(state_next_list)
     state_next = torch.FloatTensor(state_next).to(self.device)
@@ -554,7 +560,7 @@ class Agent(object):
     gt_force = np.array(gt_force)
     force_gt = torch.FloatTensor(gt_force).to(self.device)
 
-    state = bs.copy().reshape((-1,120,160,3)).astype(np.uint8)
+    state = bs.copy().reshape((-1,self.params.img_h,self.params.img_w,3)).astype(np.uint8)
     state_list = [transforms(s) for s in state]
     state = torch.stack(state_list)
     state = torch.FloatTensor(state).to(self.device)
@@ -645,7 +651,7 @@ class Agent(object):
     index7 = index6 + self.params.task_dim
     btask = bt[:, index6: index7]
 
-    state = bs.copy().reshape((-1,120,160,3)).astype(np.uint8)
+    state = bs.copy().reshape((-1,self.params.img_h,self.params.img_w,3)).astype(np.uint8)
     state_list = [transforms(s) for s in state]
     state = torch.stack(state_list)
     state = torch.FloatTensor(state).to(self.device)

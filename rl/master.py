@@ -17,6 +17,7 @@ import torchvision.models as models
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import clip
 
 from torchvision import transforms
 
@@ -32,6 +33,7 @@ class Master(nn.Module):
     super(Master, self).__init__()
     self.params = params
     self.model = models.resnet18(pretrained=True) 
+    self.clip_model, self.preprocess_clip = clip.load("RN101", device = "cuda")
     self.action_dim = action_dim
     self.max_action = max_action
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])  
@@ -40,7 +42,8 @@ class Master(nn.Module):
       nn.ReLU(),
     )
     self.img_feat_dim = 256
-    self.img_feat_block2 = nn.Linear(256 * 2 * 3, 256)
+    self.img_feat_block2 = nn.Linear(256 * 2, 256)
+    # self.img_feat_block2 = nn.Linear(256 * 3, 256)
     self.img_feat_block3 = nn.Linear(256, 256)
     self.img_feat_block4 = nn.Linear(256, self.img_feat_dim)
 
@@ -88,10 +91,16 @@ class Master(nn.Module):
       self.action_feat_block5])
 
   def forward(self, state, task_vec):
-    img_feat = self.feature_extractor(state) 
-    img_feat = torch.tanh(self.img_feat_block1(img_feat))
-    img_feat = img_feat.view(-1,256 * 2 * 3)
-    img_feat = F.relu(self.img_feat_block2(img_feat))
+    # pil_img = [transforms.ToPILImage()(x_) for x_ in state]
+    # pil_img = torch.stack(pil_img)
+    # image = self.preprocess_clip(pil_img).unsqueeze(0).cuda()
+    images_preprocessed = []
+    for i in range(state.shape[0]):
+      image_preprocessed = self.preprocess_clip(transforms.ToPILImage()(state[i])).cuda()
+      images_preprocessed.append(image_preprocessed)
+    images_preprocessed = torch.stack(images_preprocessed)
+    img_feat = self.clip_model.encode_image(images_preprocessed)
+    img_feat = F.relu(self.img_feat_block2(img_feat.float()))
     img_feat = F.relu(self.img_feat_block3(img_feat))
     img_feat = F.relu(torch.tanh(self.img_feat_block4(img_feat)))
  
@@ -129,6 +138,7 @@ class Master_F(nn.Module):
     super(Master_F, self).__init__()
     self.params = params
     self.model = models.resnet18(pretrained=True)
+    self.clip_model, self.preprocess_clip = clip.load("RN101", device = "cuda")
     self.action_dim = action_dim
     self.max_action = max_action
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])
@@ -138,7 +148,8 @@ class Master_F(nn.Module):
       #      nn.BatchNorm2d(256),
     )
     self.img_feat_dim = 128
-    self.img_feat_block2 = nn.Linear(256 * 2 * 3, 256)
+    self.img_feat_block2 = nn.Linear(256 * 2, 256)
+    # self.img_feat_block2 = nn.Linear(256 * 3, 256)
     self.img_feat_block3 = nn.Linear(256 * self.params.stack_num, 128)
     self.img_feat_block4 = nn.Linear(128, self.img_feat_dim)
 
@@ -157,10 +168,16 @@ class Master_F(nn.Module):
        self.action_feat_block1, self.action_feat_block2, self.action_feat_block3, self.action_feat_block4])
 
   def forward(self, state, task_vec):
-    img_feat = self.feature_extractor(state)
-    img_feat = torch.tanh(self.img_feat_block1(img_feat))
-    img_feat = img_feat.view(-1, 256 * 2 * 3)
-    img_feat = F.relu(self.img_feat_block2(img_feat))
+    # pil_img = [transforms.ToPILImage()(x_) for x_ in state]
+    # pil_img = torch.stack(pil_img)
+    # image = self.preprocess_clip(pil_img).unsqueeze(0).cuda()
+    images_preprocessed = []
+    for i in range(state.shape[0]):
+      image_preprocessed = self.preprocess_clip(transforms.ToPILImage()(state[i])).cuda()
+      images_preprocessed.append(image_preprocessed)
+    images_preprocessed = torch.stack(images_preprocessed)
+    img_feat = self.clip_model.encode_image(images_preprocessed)
+    img_feat = F.relu(self.img_feat_block2(img_feat.float()))
     img_feat = img_feat.view(-1, 256 * self.params.stack_num)
     img_feat = F.relu(self.img_feat_block3(img_feat))
     img_feat = F.relu(torch.tanh(self.img_feat_block4(img_feat)))
