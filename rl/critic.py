@@ -19,8 +19,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from PIL import Image
 from torchvision import transforms
-from transformers import ViltProcessor, ViltModel
+from transformers import ViltProcessor, ViltModel, ViltConfig
 
 
 def set_init(layers):
@@ -38,8 +39,16 @@ class Critic(nn.Module):
     self.max_action = max_action
     self.raw_text = eval(linecache.getline('../Languages/labels.txt', self.params.task_id+1).strip().split(":")[0])
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])
+    # ViLT
+    vilt_config = ViltConfig()
+    vilt_config.hidden_size = 60
+    vilt_config.num_hidden_layers = 8
     self.vilt_processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-mlm")
-    self.vilt_model = ViltModel.from_pretrained("dandelin/vilt-b32-mlm")
+    self.vilt_model = ViltModel(vilt_config).from_pretrained("dandelin/vilt-b32-mlm")
+    self.vilt_layers = nn.Sequential(
+            nn.Linear(197*768, 768),
+            nn.Linear(768, 384)
+    )
     self.img_feat_block1 = nn.Sequential(
       nn.Conv2d(in_channels=512,out_channels=256,kernel_size=(3,3),stride=(2,2),padding=(1,1),bias=True),
       nn.ReLU(),
@@ -68,21 +77,24 @@ class Critic(nn.Module):
       self.critic_feat_block5])
 
   def forward(self, state, task_vec, action):
-    bs = state.size(0)
-    img_feat = self.feature_extractor(state)
-    img_feat = self.img_feat_block1(img_feat)
-    img_feat = img_feat.view(-1,256 * 2 * 3)
-    img_feat = self.img_feat_block2(img_feat)
-
-    task_feat = F.relu(self.task_feat_block1(task_vec))
-    task_feat = F.relu(self.task_feat_block2(task_feat))
-    task_feat = F.relu(self.task_feat_block3(task_feat))
+    pil_list = []
+    for i in range(state.shape[0]):
+      pil_list.append(Image.fromarray(state[i]))    
+    text_list = []
+    for i in range(state.shape[0]):
+      text_list.append(self.raw_text)
+    inputs = self.vilt_processor(pil_list, text_list, return_tensors="pt")
+    for key in inputs:
+      inputs[key] = inputs[key].cuda()
+    outputs = self.vilt_model(**inputs, return_dict=True, output_hidden_states=True)
+    last_hidden_states = outputs.last_hidden_state
+    action_feat_raw = self.vilt_layers(last_hidden_states.view(state.shape[0], -1))
 
     action_feat = F.relu(self.action_feat_block1(action))
     action_feat = F.relu(self.action_feat_block2(action_feat))
     action_feat = F.relu(self.action_feat_block3(action_feat))
 
-    critic_feat = torch.cat([img_feat, task_feat, action_feat], -1)
+    critic_feat = torch.cat([action_feat_raw, action_feat], -1)
     critic_feat = F.relu(self.critic_feat_block1(critic_feat))
     critic_feat = F.relu(self.critic_feat_block2(critic_feat))
     critic_feat = F.relu(self.critic_feat_block3(critic_feat))

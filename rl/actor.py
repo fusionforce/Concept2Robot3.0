@@ -10,6 +10,7 @@ import glob
 import imageio
 import math
 import datetime
+from PIL import Image
 import linecache
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -44,7 +45,7 @@ class Actor(nn.Module):
     self.vilt_processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-mlm")
     self.vilt_model = ViltModel(vilt_config).from_pretrained("dandelin/vilt-b32-mlm")
     self.vilt_layers = nn.Sequential(
-            nn.Linear(197*64, 768),
+            nn.Linear(197*768, 768),
             nn.Linear(768, 384)
     )
     self.img_feat_block1 = nn.Sequential(
@@ -97,33 +98,16 @@ class Actor(nn.Module):
       self.action_feat_block4])
 
   def forward(self, state, task_vec, training=False):
-    bs = state.size(0)
-    # img_feat = self.feature_extractor(state) 
-    # img_feat = self.img_feat_block1(img_feat)
-    # img_feat = img_feat.view(-1,256 * 2 * 3)
-    # img_feat = self.img_feat_block2(img_feat) 
-
-    # task_feat = F.relu(self.task_feat_block1(task_vec))
-    # task_feat = F.relu(self.task_feat_block2(task_feat))
-    # task_feat = F.relu(self.task_feat_block3(task_feat))
-   
-    # action_feat_raw = torch.cat([img_feat,task_feat],-1)
-    vilt_outputs = []
+    pil_list = []
     for i in range(state.shape[0]):
-      inputs = self.vilt_processor(transforms.ToPILImage()(state[i]), self.raw_text, return_tensors="pt")
-      for key in inputs:
-        inputs[key] = inputs[key].cuda()
-      print(":::::ViLT preprocessed inputs::::::", inputs)
-      outputs = self.vilt_model(**inputs)
-      outputs = outputs.last_hidden_state
-      print(":::::Outputs shape before flatten::::::::", outputs.shape)
-      outputs = outputs.view(1, -1)
-      print(":::::Outputs shape after flatten::::::::", outputs.shape)
-      outputs = self.vilt_layers(outputs)
-      vilt_outputs.append(outputs)
-    action_feat_raw = torch.cat(vilt_outputs)
-    print(":::::ViLT last hidden state::::::", action_feat_raw.shape)
-
+      pil_list.append(Image.fromarray(state[i]))    
+    inputs = self.vilt_processor(pil_list, self.raw_text, return_tensors="pt")
+    for key in inputs:
+      inputs[key] = inputs[key].cuda()
+    outputs = self.vilt_model(**inputs, return_dict=True, output_hidden_states=True)
+    last_hidden_states = outputs.last_hidden_state
+    action_feat_raw = self.vilt_layers(last_hidden_states.view(state.shape[0], -1))
+    
     ### generate goal
     action_feat = F.relu(self.action_feat_block1(action_feat_raw))
     action_feat = F.relu(self.action_feat_block2(action_feat))

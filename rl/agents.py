@@ -36,8 +36,8 @@ from critic import Critic
 from master import Master
 
 transforms = transforms.Compose([
-  transforms.ToPILImage(),
-  transforms.ToTensor(),
+  # transforms.ToPILImage(),
+  # transforms.ToTensor(),
   # transforms.Normalize(mean=[0.485, 0.456, 0.406],
   #                      std=[0.229, 0.224, 0.225])
   ])
@@ -112,9 +112,9 @@ class Agent(object):
 
   def choose_action(self, state, task_vec):
     state = state.reshape((-1,120,160,3)).astype(np.uint8)
-    state_list = [transforms(s) for s in state]
-    state = torch.stack(state_list)
-    state = torch.FloatTensor(state).to(self.device)
+    # state_list = [transforms(s) for s in state]
+    # state = torch.stack(state_list)
+    # state = torch.FloatTensor(state).to(self.device)
     task_vec = torch.FloatTensor(task_vec.reshape((-1,self.params.task_dim))).to(self.device)
     goal_action, force_action = self.actor(state, task_vec)
     goal_action = goal_action.cpu().data.numpy().flatten()
@@ -123,18 +123,18 @@ class Agent(object):
 
   def choose_action_goal_only(self, state, task_vec):
     state = state.reshape((-1,120,160,3)).astype(np.uint8)
-    state_list = [transforms(s) for s in state]
-    state = torch.stack(state_list)
-    state = torch.FloatTensor(state).to(self.device)
+    # state_list = [transforms(s) for s in state]
+    # state = torch.stack(state_list)
+    # state = torch.FloatTensor(state).to(self.device)
     task_vec = torch.FloatTensor(task_vec.reshape((-1,self.params.task_dim))).to(self.device)
     goal_action, _ = self.actor(state, task_vec)
     return goal_action.cpu().data.numpy().flatten()
 
   def choose_action_master(self, state, task_vec):
     state = state.reshape((-1,120,160,3)).astype(np.uint8)
-    state_list = [transforms(s) for s in state]
-    state = torch.stack(state_list)
-    state = torch.FloatTensor(state).to(self.device)
+    # state_list = [transforms(s) for s in state]
+    # state = torch.stack(state_list)
+    # state = torch.FloatTensor(state).to(self.device)
     task_vec = torch.FloatTensor(task_vec.reshape((-1,self.params.task_dim))).to(self.device)
     goal_action, force_action = self.master(state, task_vec)
     goal_action = goal_action.cpu().data.numpy().flatten()
@@ -143,9 +143,9 @@ class Agent(object):
 
   def choose_action_feedback(self, state, task_vec):
     state = state.reshape((-1,120,160,3)).astype(np.uint8)
-    state_list = [transforms(s) for s in state]
-    state = torch.stack(state_list)
-    state = torch.FloatTensor(state).to(self.device)
+    # state_list = [transforms(s) for s in state]
+    # state = torch.stack(state_list)
+    # state = torch.FloatTensor(state).to(self.device)
     task_vec = torch.FloatTensor(task_vec.reshape((-1,self.params.task_dim))).to(self.device)
     assert state.size()[0] == 4 * task_vec.size()[0]
     self.actor_feedback.eval()
@@ -186,9 +186,9 @@ class Agent(object):
     ba_gt = bt[:, index7: index8]
 
     state = bs.copy().reshape((-1,120,160,3)).astype(np.uint8)
-    state_list = [transforms(s) for s in state]
-    state = torch.stack(state_list)
-    state = torch.FloatTensor(state).to(self.device)
+    # state_list = [transforms(s) for s in state]
+    # state = torch.stack(state_list)
+    # state = torch.FloatTensor(state).to(self.device)
     action = ba.copy().reshape((self.params.batch_size,-1))
     action_gt = ba_gt.copy().reshape((self.params.batch_size,-1))
     
