@@ -20,6 +20,8 @@ import torch.nn.functional as F
 
 from torchvision import transforms
 
+from pdb import set_trace as bp
+from transformers import ViTModel
 
 def set_init(layers):
   for layer in layers:
@@ -34,15 +36,23 @@ class Master(nn.Module):
     self.model = models.resnet18(pretrained=True) 
     self.action_dim = action_dim
     self.max_action = max_action
-    self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])  
-    self.img_feat_block1 = nn.Sequential(
-      nn.Conv2d(in_channels=512,out_channels=256,kernel_size=(3,3),stride=(2,2),padding=(1,1),bias=True),
-      nn.ReLU(),
-    )
+    # self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])  
+    # self.img_feat_block1 = nn.Sequential(
+    #   nn.Conv2d(in_channels=512,out_channels=256,kernel_size=(3,3),stride=(2,2),padding=(1,1),bias=True),
+    #   nn.ReLU(),
+    # )
     self.img_feat_dim = 256
-    self.img_feat_block2 = nn.Linear(256 * 2 * 3, 256)
-    self.img_feat_block3 = nn.Linear(256, 256)
-    self.img_feat_block4 = nn.Linear(256, self.img_feat_dim)
+    # self.img_feat_block2 = nn.Linear(256 * 2 * 3, 256)
+    # self.img_feat_block3 = nn.Linear(256, 256)
+    # self.img_feat_block4 = nn.Linear(256, self.img_feat_dim)
+  
+    # VIT MODEL
+    self.image_upsample = torch.nn.Upsample(scale_factor=(1.866667,1.4), mode='nearest')
+    self.vit_model = ViTModel.from_pretrained("google/vit-base-patch16-224-in21k").cuda()
+    self.vit_feat_block1 = nn.Linear(197 * 768 ,256 * 2 * 3)
+    self.vit_feat_block2 = nn.Linear(256 * 2 * 3, 256)
+    self.vit_feat_block3 = nn.Linear(256, 256)
+    self.vit_feat_block4 = nn.Linear(256, self.img_feat_dim)
 
     self.task_feat_block1 = nn.Linear(1024, 512)
     self.task_feat_block2 = nn.Linear(512, 256)
@@ -83,17 +93,32 @@ class Master(nn.Module):
       nn.ConvTranspose1d(in_channels=256,out_channels=self.params.a_dim,kernel_size=3,stride=2,padding=1,bias=False),
     )
 
-    set_init([self.img_feat_block2, self.img_feat_block3, self.img_feat_block4, self.task_feat_block1, self.task_feat_block2, self.task_feat_block3,\
+    
+    set_init([self.vit_feat_block1, self.vit_feat_block2, self.vit_feat_block3, self.vit_feat_block4, self.task_feat_block1, self.task_feat_block2, self.task_feat_block3,\
       self.action_feat_block1, self.action_feat_block2, self.action_feat_block3, self.action_feat_block4,\
       self.action_feat_block5])
+    # set_init([self.img_feat_block2, self.img_feat_block3, self.img_feat_block4, self.task_feat_block1, self.task_feat_block2, self.task_feat_block3,\
+    #   self.action_feat_block1, self.action_feat_block2, self.action_feat_block3, self.action_feat_block4,\
+    #   self.action_feat_block5])
 
   def forward(self, state, task_vec):
-    img_feat = self.feature_extractor(state) 
-    img_feat = torch.tanh(self.img_feat_block1(img_feat))
-    img_feat = img_feat.view(-1,256 * 2 * 3)
-    img_feat = F.relu(self.img_feat_block2(img_feat))
-    img_feat = F.relu(self.img_feat_block3(img_feat))
-    img_feat = F.relu(torch.tanh(self.img_feat_block4(img_feat)))
+    vit_feat = self.image_upsample(state)
+    with torch.no_grad():
+      vit_feat = self.vit_model(vit_feat)
+    vit_feat = vit_feat.last_hidden_state
+    vit_feat = vit_feat.view(-1 , 197 * 768)
+    vit_feat = F.relu(self.vit_feat_block1(vit_feat))
+    vit_feat = F.relu(self.vit_feat_block2(vit_feat))
+    vit_feat = F.relu(self.vit_feat_block3(vit_feat))
+    vit_feat = F.relu(torch.tanh(self.vit_feat_block4(img_feat)))
+    img_feat = vit_feat
+
+    # img_feat = self.feature_extractor(state) 
+    # img_feat = torch.tanh(self.img_feat_block1(img_feat))
+    # img_feat = img_feat.view(-1,256 * 2 * 3)
+    # img_feat = F.relu(self.img_feat_block2(img_feat))
+    # img_feat = F.relu(self.img_feat_block3(img_feat))
+    # img_feat = F.relu(torch.tanh(self.img_feat_block4(img_feat)))
  
     task_feat = F.relu(self.task_feat_block1(task_vec))
     task_feat = F.relu(self.task_feat_block2(task_feat))

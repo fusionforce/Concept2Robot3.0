@@ -20,6 +20,8 @@ import torch.nn.functional as F
 
 from torchvision import transforms
 
+from pdb import set_trace as bp
+from transformers import ViTModel
 
 def set_init(layers):
   for layer in layers:
@@ -35,6 +37,12 @@ class Critic(nn.Module):
     self.action_dim = action_dim
     self.max_action = max_action
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])
+    # VIT MODEL
+    self.image_upsample = torch.nn.Upsample(scale_factor=(1.866667,1.4), mode='nearest')
+    self.vit_model = ViTModel.from_pretrained("google/vit-base-patch16-224-in21k").cuda()
+    self.vit_feat_block1 = nn.Linear(197 * 768 ,256 * 2 * 3)
+    self.vit_feat_block2 = nn.Linear(256 * 2 * 3, 256)
+
     self.img_feat_block1 = nn.Sequential(
       nn.Conv2d(in_channels=512,out_channels=256,kernel_size=(3,3),stride=(2,2),padding=(1,1),bias=True),
       nn.ReLU(),
@@ -64,10 +72,19 @@ class Critic(nn.Module):
 
   def forward(self, state, task_vec, action):
     bs = state.size(0)
-    img_feat = self.feature_extractor(state)
-    img_feat = self.img_feat_block1(img_feat)
-    img_feat = img_feat.view(-1,256 * 2 * 3)
-    img_feat = self.img_feat_block2(img_feat)
+    vit_feat = self.image_upsample(state)
+    with torch.no_grad():
+      vit_feat = self.vit_model(vit_feat)
+    vit_feat = vit_feat.last_hidden_state
+    vit_feat = vit_feat.view(-1 , 197 * 768)
+    vit_feat = self.vit_feat_block1(vit_feat)
+    vit_feat = self.vit_feat_block2(vit_feat)
+    img_feat = vit_feat
+    
+    # img_feat = self.feature_extractor(state)
+    # img_feat = self.img_feat_block1(img_feat)
+    # img_feat = img_feat.view(-1,256 * 2 * 3)
+    # img_feat = self.img_feat_block2(img_feat)
 
     task_feat = F.relu(self.task_feat_block1(task_vec))
     task_feat = F.relu(self.task_feat_block2(task_feat))

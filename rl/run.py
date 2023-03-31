@@ -59,3 +59,5 @@ if __name__ == "__main__":
         worker.feedback_test(restore_feedback_episode=args.restore_feedback_episode, restore_feedback_path=args.restore_feedback_path)
     else:
         pass
+
+# m = torch.nn.Upsample(scale_factor=(1.8667,1.4), mode='nearest')

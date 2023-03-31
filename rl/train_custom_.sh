@@ -7,4 +7,4 @@ python3 run.py\
         --start_learning_episode 500\
         --saving_model_freq 500\
         --max_ep 5005 \
-        --comment "jigar_vit_with_master_change"
+        --comment "jigar"

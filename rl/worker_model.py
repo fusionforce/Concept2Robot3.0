@@ -17,6 +17,8 @@ import math
 from tensorboardX import SummaryWriter
 import datetime
 
+from pdb import set_trace as bp
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DMP_DIR = os.path.join(BASE_DIR,'../deepTraj')
 PROJECT_DIR = os.path.join(BASE_DIR,'../')
