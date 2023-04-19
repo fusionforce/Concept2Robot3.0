@@ -41,10 +41,17 @@ class Critic(nn.Module):
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])
     # ViLT
     vilt_config = ViltConfig()
-    vilt_config.hidden_size = 60
+    vilt_config.hidden_size = 64
     vilt_config.num_hidden_layers = 8
+    vilt_config.num_attention_heads = 8
     self.vilt_processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-mlm")
     self.vilt_model = ViltModel(vilt_config).from_pretrained("dandelin/vilt-b32-mlm")
+
+    # Freeze layers except last 2
+    for i, param in enumerate(self.vilt_model.parameters()):
+      if i<=105:
+        param.requires_grad = False
+
     self.vilt_layers = nn.Sequential(
             nn.Linear(197*768, 768),
             nn.Linear(768, 384)
@@ -79,7 +86,7 @@ class Critic(nn.Module):
   def forward(self, state, task_vec, action):
     pil_list = []
     for i in range(state.shape[0]):
-      pil_list.append(Image.fromarray(state[i]))    
+      pil_list.append(Image.fromarray(state[i]))
     text_list = []
     for i in range(state.shape[0]):
       text_list.append(self.raw_text)

@@ -33,17 +33,25 @@ class Actor(nn.Module):
   def __init__(self, state_dim, action_dim, task_dim, max_action, params):
     super(Actor, self).__init__()
     self.params = params
-    self.model = models.resnet18(pretrained=True) 
+    self.model = models.resnet18(pretrained=True)
     self.action_dim = action_dim
     self.max_action = max_action
     self.raw_text = eval(linecache.getline('../Languages/labels.txt', self.params.task_id+1).strip().split(":")[0])
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])
     # ViLT
     vilt_config = ViltConfig()
-    vilt_config.hidden_size = 60
+    vilt_config.hidden_size = 64
     vilt_config.num_hidden_layers = 8
+    vilt_config.num_attention_heads = 8
+
     self.vilt_processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-mlm")
     self.vilt_model = ViltModel(vilt_config).from_pretrained("dandelin/vilt-b32-mlm")
+
+    # Freeze layers except last 2
+    for i, param in enumerate(self.vilt_model.parameters()):
+      if i<=105:
+        param.requires_grad = False
+
     self.vilt_layers = nn.Sequential(
             nn.Linear(197*768, 768),
             nn.Linear(768, 384)
@@ -100,14 +108,14 @@ class Actor(nn.Module):
   def forward(self, state, task_vec, training=False):
     pil_list = []
     for i in range(state.shape[0]):
-      pil_list.append(Image.fromarray(state[i]))    
+      pil_list.append(Image.fromarray(state[i]))
     inputs = self.vilt_processor(pil_list, self.raw_text, return_tensors="pt")
     for key in inputs:
       inputs[key] = inputs[key].cuda()
     outputs = self.vilt_model(**inputs, return_dict=True, output_hidden_states=True)
     last_hidden_states = outputs.last_hidden_state
     action_feat_raw = self.vilt_layers(last_hidden_states.view(state.shape[0], -1))
-    
+
     ### generate goal
     action_feat = F.relu(self.action_feat_block1(action_feat_raw))
     action_feat = F.relu(self.action_feat_block2(action_feat))

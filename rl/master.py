@@ -34,17 +34,24 @@ class Master(nn.Module):
   def __init__(self, state_dim, action_dim, task_dim, max_action, params):
     super(Master, self).__init__()
     self.params = params
-    self.model = models.resnet18(pretrained=True) 
+    self.model = models.resnet18(pretrained=True)
     self.action_dim = action_dim
     self.max_action = max_action
     self.raw_text = eval(linecache.getline('../Languages/labels.txt', self.params.task_id+1).strip().split(":")[0])
-    self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])  
+    self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])
     # ViLT
     vilt_config = ViltConfig()
-    vilt_config.hidden_size = 60
+    vilt_config.hidden_size = 64
     vilt_config.num_hidden_layers = 8
+    vilt_config.num_attention_heads = 8
     self.vilt_processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-mlm")
     self.vilt_model = ViltModel(vilt_config).from_pretrained("dandelin/vilt-b32-mlm")
+
+    # Freeze layers except last 2
+    for i, param in enumerate(self.vilt_model.parameters()):
+      if i<=105:
+        param.requires_grad = False
+
     self.vilt_layers = nn.Sequential(
             nn.Linear(197*768, 768),
             nn.Linear(768, 384)
@@ -68,7 +75,7 @@ class Master(nn.Module):
     self.action_feat_block3 = nn.Linear(256, 256)
     self.action_feat_block4 = nn.Linear(256, self.action_dim)
 
-#####3 Force 
+#####3 Force
     # 1
     self.force_feat_block1 = nn.Sequential(
       nn.ConvTranspose1d(in_channels=256+self.img_feat_dim,out_channels=512,kernel_size=4,stride=1,bias=True),
@@ -87,7 +94,7 @@ class Master(nn.Module):
       nn.ReLU(),
     )
 
-    # 
+    #
     self.force_feat_block4 = nn.Sequential(
       nn.ConvTranspose1d(in_channels=256,out_channels=256,kernel_size=3,stride=2,padding=1,bias=True),
       nn.ReLU(),
@@ -104,14 +111,14 @@ class Master(nn.Module):
   def forward(self, state, task_vec):
     pil_list = []
     for i in range(state.shape[0]):
-      pil_list.append(Image.fromarray(state[i]))    
+      pil_list.append(Image.fromarray(state[i]))
     inputs = self.vilt_processor(pil_list, self.raw_text, return_tensors="pt")
     for key in inputs:
       inputs[key] = inputs[key].cuda()
     outputs = self.vilt_model(**inputs, return_dict=True, output_hidden_states=True)
     last_hidden_states = outputs.last_hidden_state
     task_feat = self.vilt_layers(last_hidden_states.view(state.shape[0], -1))
-    
+
 ###################################################################
     action_feat = F.relu(self.action_feat_block1(task_feat))
     action_feat = F.relu(self.action_feat_block5(action_feat))
@@ -146,10 +153,18 @@ class Master_F(nn.Module):
     self.feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-2])
     # ViLT
     vilt_config = ViltConfig()
-    vilt_config.hidden_size = 60
+    vilt_config.hidden_size = 64
     vilt_config.num_hidden_layers = 8
+    vilt_config.num_attention_heads = 8
+
     self.vilt_processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-mlm")
     self.vilt_model = ViltModel(vilt_config).from_pretrained("dandelin/vilt-b32-mlm")
+
+    # Freeze layers except last 2
+    for i, param in enumerate(self.vilt_model.parameters()):
+      if i<=105:
+        param.requires_grad = False
+
     self.vilt_layers = nn.Sequential(
             nn.Linear(197*768, 768),
             nn.Linear(768, 384)
@@ -194,7 +209,7 @@ class Master_F(nn.Module):
     # task_feat = torch.cat([img_feat, task_feat], -1)
     pil_list = []
     for i in range(state.shape[0]):
-      pil_list.append(Image.fromarray(state[i]))    
+      pil_list.append(Image.fromarray(state[i]))
     inputs = self.vilt_processor(pil_list, self.raw_text, return_tensors="pt")
     for key in inputs:
       inputs[key] = inputs[key].cuda()
