@@ -112,7 +112,10 @@ class Master(nn.Module):
     pil_list = []
     for i in range(state.shape[0]):
       pil_list.append(Image.fromarray(state[i]))
-    inputs = self.vilt_processor(pil_list, self.raw_text, return_tensors="pt")
+    text_list = []
+    for i in range(state.shape[0]):
+      text_list.append(self.raw_text)
+    inputs = self.vilt_processor(pil_list, text_list, return_tensors="pt")
     for key in inputs:
       inputs[key] = inputs[key].cuda()
     outputs = self.vilt_model(**inputs, return_dict=True, output_hidden_states=True)
@@ -210,7 +213,10 @@ class Master_F(nn.Module):
     pil_list = []
     for i in range(state.shape[0]):
       pil_list.append(Image.fromarray(state[i]))
-    inputs = self.vilt_processor(pil_list, self.raw_text, return_tensors="pt")
+    text_list = []
+    for i in range(state.shape[0]):
+      text_list.append(self.raw_text)
+    inputs = self.vilt_processor(pil_list, text_list, return_tensors="pt")
     for key in inputs:
       inputs[key] = inputs[key].cuda()
     outputs = self.vilt_model(**inputs, return_dict=True, output_hidden_states=True)
