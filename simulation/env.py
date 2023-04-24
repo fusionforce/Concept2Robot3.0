@@ -10,8 +10,10 @@ import os
 import argparse
 import torch
 from math import sin,cos,acos
-
+import torch.nn as nn
 import sys
+import yaml
+from models.vit import resize_pos_embed
 sys.path.append('./Eval')
 sys.path.append('./')
 
@@ -29,6 +31,9 @@ except Exception:
     from utils_env import get_view,safe_path,cut_frame,point2traj,get_gripper_pos,backup_code   
     from robot import Robot
 
+from models.model_caption_mplug_vatex import MPLUG
+from models.tokenization_bert import BertTokenizer
+
 #################################
 import signal
 import importlib
@@ -38,6 +43,12 @@ import torch.nn as nn
 import sh
 import re
 import torch.nn.functional as F
+
+import math
+import re
+from collections import Counter
+
+WORD = re.compile(r"\w+")
 
 np.set_printoptions(precision=4,suppress=True,linewidth=300)
 sys.path.insert(0,"../external/something-something-v2-baseline.git")
@@ -68,7 +79,7 @@ class Engine:
     def __init__(self, opti, wid, p_id, maxSteps=23, taskId=15, n_dmps=3, cReward=True, robot_model=None):
         # TODO: Make less hacky
         self.classifier = opti.classifier
-        if self.classifier == 'video':
+        if self.classifier == 'video' or self.classifier == 'captioning':
           print("printting video")
 #          self.config = load_json_config("../../models/something-something-v2-baseline/configs/config_model1.json")
           self.config = load_json_config("../models/something-something-v2-baseline/configs/config_model1_left_right.json")
@@ -157,7 +168,7 @@ class Engine:
         self.success_flag = False
 
     def load_model(self):
-        if self.classifier == 'video':
+        if self.classifier == 'video' or self.classifier == 'captioning':
             save_dir =  os.path.join("../models/something-something-v2-baseline/pretrained/model3D_1_left_right/")
             print("save_dir",save_dir)
         elif self.classifier == 'trn_video':
@@ -200,7 +211,7 @@ class Engine:
           cnn_def = importlib.import_module("{}".format(file_name))
 
           # create model
-          if self.classifier == 'video':
+          if self.classifier == 'video' or self.classifier == 'captioning':
             from models.multi_column import MultiColumn
             model = MultiColumn(self.config["num_classes"], cnn_def.Model, int(self.config["column_units"]))
           elif self.classifier == 'image':
@@ -748,7 +759,102 @@ class Engine:
         else:
           reward = 0.0
         return reward
- 
+      
+    def cosine_sim(self, vec1, vec2):
+        intersection = set(vec1.keys()) & set(vec2.keys())
+        numerator = sum([vec1[x] * vec2[x] for x in intersection])
+        sum1 = sum([vec1[x] ** 2 for x in list(vec1.keys())])
+        sum2 = sum([vec2[x] ** 2 for x in list(vec2.keys())])
+        denominator = math.sqrt(sum1) * math.sqrt(sum2)
+        if not denominator:
+          return 0.0
+        else:
+          return float(numerator) / denominator
+    
+    def load_checkpoint(self, model, checkpoint_path, config):
+        if isinstance(model,torch.nn.parallel.DistributedDataParallel):
+            model=model.module
+        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        state_dict = checkpoint['model']
+        tmp = {}
+        for key in state_dict.keys():
+            if '_m.' in key:
+                continue
+            if 'text_encoder.bert' in key[:len('text_encoder.bert')]:
+                encoder_key = key.replace('bert.', '')
+                tmp[encoder_key] = state_dict[key]
+            elif 'fusion_encoder.fusion' in key:
+                encoder_key = key.replace('fusion.', '')
+                tmp[encoder_key]=state_dict[key]
+            else:
+                tmp[key]=state_dict[key]
+        state_dict = tmp
+
+        # reshape positional embedding to accomodate for image resolution change
+        vit_rate = 16*16 if '16' in config['clip_name'] else 14*14
+        num_patches = int(config["image_res"] * config["image_res"]/vit_rate)
+        pos_embed = nn.Parameter(torch.zeros(num_patches + 1, config['vision_width']).float())
+
+        pos_embed = resize_pos_embed(state_dict['visual_encoder.visual.positional_embedding'].unsqueeze(0),
+                                                    pos_embed.unsqueeze(0))
+        state_dict['visual_encoder.visual.positional_embedding'] = pos_embed
+
+        if config['distill']:
+            num_patches = int(config["image_res"] * config["image_res"] / vit_rate)
+            pos_embed = nn.Parameter(torch.zeros(num_patches + 1, config['vision_width']).float())
+
+        msg = model.load_state_dict(state_dict, strict=False)
+        print('load checkpoint from %s' % checkpoint_path)
+        print(msg)
+
+    def text_to_vector(self, text):
+        words = WORD.findall(text)
+        return Counter(words)
+
+    def get_caption_reward(self,seg,taskId=None):
+        if taskId is None:
+          taskId = self.taskId
+        obs_list = self.obs_list.copy()
+        data = self.rewardBaseline(obs_list)
+        input = data.unsqueeze(0)
+        input_var = input.to(self.device)
+        
+        # Load captioning config
+        config = yaml.load(open('configs/videocap_vatex_mplug_large.yaml', 'r'), Loader=yaml.Loader)
+        config["min_length"] = 10
+        config["max_length"] = 30
+        config["beam_size"] = 10
+        config['text_encoder'] = 'bert-base-uncased'
+        config['text_decoder'] = 'bert-base-uncased'
+        
+        # Tokenizer
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        
+        # Captioning model
+        print("Creating model")
+        
+        caption_model = MPLUG(config=config, tokenizer=tokenizer)
+        caption_model = caption_model.to('cuda')
+        
+        # Need to load checkpoint
+        checkpoint_path = '/home/ubuntu/fusion_force/Concept2Robot3.0/simulation/mplug_base.pth'
+        self.load_checkpoint(caption_model, checkpoint_path, config)
+        # Generate caption 
+        caption = None
+        # frames = torch.stack(input_var).squeeze(0)
+        print("frames shape::::::", input_var.shape)
+        topk_ids, topk_probs = caption_model(input_var, caption, None, train=False, device='cuda')
+
+        for topk_id, topk_prob in zip(topk_ids, topk_probs):
+            caption = tokenizer.decode(topk_id[0]).replace("[SEP]", "").replace("[CLS]", "").replace("[PAD]", "").strip()
+            caption += ' .'
+
+        # Compute cosine similarity
+        caption = self.text_to_vector(caption)
+        raw_text = self.text_to_vector(self.raw_text)
+        reward = self.cosine_sim(caption, raw_text)
+        return reward
+
     def get_tsm_video_reward(self, taskId=None):
         if taskId is None:
           taskId = self.taskId
@@ -771,14 +877,18 @@ class Engine:
         reward = output[taskId] * 174.0 - 2.0
         reward = 1. / (1. + np.exp(-reward))
         return reward
- 
+
     def taskColliDet(self): 
         return False
 
     def get_reward (self,seg=None):
+        w1 = self.opti.video_reward_weight
+        w2 = self.opti.caption_reward_weight
         if self.cReward:
           if self.classifier in ('video', 'image'):
-            return self.get_video_reward(seg)
+            return self.get_video_reward(seg) 
+          elif self.classifier == 'captioning':
+            return self.get_caption_reward(seg)
           elif self.classifier == 'tsm_video':
             return self.get_tsm_video_reward()
         else:

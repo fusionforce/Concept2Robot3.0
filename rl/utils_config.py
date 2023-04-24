@@ -23,7 +23,7 @@ def load_args():
                         help='only use force term to generate the motion trajectory')
 
     ### experiment specification
-    parser.add_argument('--classifier', default='video', type=str, choices=['video', 'image'])
+    parser.add_argument('--classifier', default='video', type=str, choices=['video', 'image', 'captioning'])
     parser.add_argument('--max_ep', default=500000, type=int, help="maximum episode in the training stage")
     parser.add_argument('--max_action', default=0.5, type=float, help='maximum action in translation')
     parser.add_argument('--rotation_max_action', default=0.1, type=float, help='maximum action in rotation')
@@ -98,5 +98,9 @@ def load_args():
     parser.add_argument('--view_point', default='first', type=str, choices=['first', 'third'],
                         help='viewpoint of the camera')
     parser.add_argument('--stage', default='train', type=str, help='which stage to execute')
+    
+    # caption vs video reward weights
+    parser.add_argument('--video_reward_weight', default = 0.2, type=float)
+    parser.add_argument('--caption_reward_weight', default = 0.8, type=float)
     args = parser.parse_args()
     return args

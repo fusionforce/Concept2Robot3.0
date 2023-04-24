@@ -1,10 +1,11 @@
 python3 run.py\
         --task_id 5\
-        --exp_name "vilt-frozen"\
+        --exp_name "vilt-unfrozen-caption-reward"\
         --stage train\
         --batch_size 64\
         --action_penalty 0.2\
         --start_learning_episode 500\
         --saving_model_freq 500\
-        --max_ep 5005 \
-        --comment "vilt-frozen"
+        --max_ep 5005\
+        --classifier 'captioning'\
+        --comment "vilt-unfrozen-caption-reward"
