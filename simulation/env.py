@@ -16,7 +16,7 @@ import yaml
 from models.vit import resize_pos_embed
 sys.path.append('./Eval')
 sys.path.append('./')
-
+import linecache
 #### import deepTraj
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DMP_DIR = os.path.join(BASE_DIR,'../deepTraj')
@@ -89,6 +89,8 @@ class Engine:
         elif self.classifier == 'tsm_video':
           self.config = load_json_config("../classification/video/configs/config_tsm_video.json")
         print("self.config",self.config)
+
+        self.raw_text = eval(linecache.getline('../Languages/labels.txt', opti.task_id+1).strip().split(":")[0])
 
         # setup device - CPU or GPU
         self.device = torch.device("cuda")
