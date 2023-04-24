@@ -48,9 +48,9 @@ class Actor(nn.Module):
     self.vilt_model = ViltModel(vilt_config).from_pretrained("dandelin/vilt-b32-mlm")
 
     # Freeze layers except last 2
-    for i, param in enumerate(self.vilt_model.parameters()):
-      if i<=105:
-        param.requires_grad = False
+    # for i, param in enumerate(self.vilt_model.parameters()):
+    #   if i<=105:
+    #     param.requires_grad = False
 
     self.vilt_layers = nn.Sequential(
             nn.Linear(197*768, 768),
