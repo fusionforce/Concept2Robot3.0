@@ -72,10 +72,18 @@ unzip data.zip
 
 7. Download [models](https://drive.google.com/drive/folders/1zkKlzSlDI_qarN2Hw-TF2vWJN728HGyW?usp=sharing) folder into `Concept2Robot3.0/rl` directory using gdown as performed above.
 
-6. Run the code
+8. Run the code
 ```
 cd rl; bash train_5.sh
 ```
+
+9. To run vilt-video-caption branch:
+  a. Using gdown as mentioned above, download [mplug_base_model](https://drive.google.com/file/d/18V6ynx_q4aLTz5GdvG2AUZbQRpTaHCNQ/view?usp=share_link) and [ViT-B-16](https://drive.google.com/file/d/1X8bzZg1H1FkzP0mA66ZFpyyyF9MwuJWy/view?usp=share_link) into simulation/models folder. 
+  b. Change the paths of the following checkpoints 
+      1. File simulation/env.py; Line #840, change checkpoint path to where mplug_base is saved. 
+      2. File simulation/models/visual_transformers.py; Line #43, change path to where ViT-B-16 is saved. 
+  c. Run pip install -r simulation/models/requirements.txt
+  d. Run bash rl/train_5.sh
 
 ## Tips
 
