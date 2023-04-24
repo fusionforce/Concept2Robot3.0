@@ -40,7 +40,7 @@ def resize_pos_embed(posemb, posemb_new):
 def initialize_clip(config, num_patches=240):
     from models.clip import clip
     if config["clip_name"] == "ViT-B-16":
-        clip_model, preprocess = clip.load("/home/ubuntu/fusion_force/Concept2Robot3.0/simulation/models/clip/ViT-B-16.tar", jit=False)
+        clip_model, preprocess = clip.load("/home/pointcloud/Gunjan/Jigar/mmml_project/vilt/Concept2Robot3.0/ViT-B-16.tar", jit=False)
         num_patches = int(config['image_res']*config['image_res']/(16*16))
         pos_embed = nn.Parameter(torch.zeros(num_patches + 1, 768).float())
     elif config["clip_name"] == "ViT-L-14":

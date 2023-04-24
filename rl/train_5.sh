@@ -6,6 +6,6 @@ python3 run.py\
         --action_penalty 0.2\
         --start_learning_episode 500\
         --saving_model_freq 500\
-        --max_ep 5005\
+        --max_ep 15005\
         --classifier 'captioning'\
         --comment "vilt-unfrozen-caption-reward"

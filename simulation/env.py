@@ -839,12 +839,12 @@ class Engine:
         caption_model = caption_model.to('cuda')
         
         # Need to load checkpoint
-        checkpoint_path = '/home/ubuntu/fusion_force/Concept2Robot3.0/simulation/mplug_base.pth'
+        checkpoint_path = '/home/pointcloud/Gunjan/Jigar/mmml_project/vilt/Concept2Robot3.0/mplug_base.pth'
         self.load_checkpoint(caption_model, checkpoint_path, config)
         # Generate caption 
         caption = None
         # frames = torch.stack(input_var).squeeze(0)
-        print("frames shape::::::", input_var.shape)
+        
         topk_ids, topk_probs = caption_model(input_var, caption, None, train=False, device='cuda')
 
         for topk_id, topk_prob in zip(topk_ids, topk_probs):
